@@ -1,0 +1,14 @@
+#Analysis related libs
+streamlit==1.49.0
+pandas==2.3.2
+numpy==2.3.2
+scipy==1.16.1
+matplotlib==3.10.5
+seaborn==0.13.2
+plotly==6.3.0
+
+
+#agent related libs
+langchain 
+langchain-ollama # for local model connection
+ollama>=0.5      # if you have installed ollama locally then use this

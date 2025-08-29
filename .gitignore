@@ -1,0 +1,64 @@
+# ----------------
+# Python
+# ----------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# ----------------
+# Virtual environments
+# ----------------
+.venv/
+venv/
+env/
+ENV/
+*.env
+*.venv
+
+# ----------------
+# Jupyter / Streamlit
+# ----------------
+.ipynb_checkpoints/
+.streamlit/secrets.toml  # sensitive keys (OpenAI API, etc.)
+
+# ----------------
+# Data
+# ----------------
+data/*.csv
+data/*.xlsx
+data/*.parquet
+data/*.json
+!data/sample_*           # allow only small demo datasets
+*.db
+*.sqlite
+
+# ----------------
+# Logs & cache
+# ----------------
+*.log
+*.out
+*.err
+*.cache/
+.cache/
+__pycache__/
+*.pkl
+
+# ----------------
+# OS files
+# ----------------
+.DS_Store
+Thumbs.db
+
+# ----------------
+# IDEs
+# ----------------
+.vscode/
+.idea/
+*.swp
+*.swo
