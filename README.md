@@ -88,4 +88,4 @@ Contributions are welcome! Please fork the repo and submit a pull request.
 
 Shivendu Kumar
 
-📌 Data Scientist | MLOps Engineer 
+📌 Data Scientist | MLOps Engineer |
