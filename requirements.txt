@@ -6,7 +6,7 @@ scipy==1.16.1
 matplotlib==3.10.5
 seaborn==0.13.2
 plotly==6.3.0
-
+rapidfuzz
 
 #agent related libs
 langchain 
