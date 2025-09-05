@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
-from rapidfuzz import process, fuzz
+from rapidfuzz import fuzz
+
+from modules.agent_layer import handle
 
 # -------------------------
 # Streamlit UI
@@ -140,6 +142,8 @@ with st.sidebar:
                 if not user_prompt:
                     st.warning("Please enter a question before running!")
                 else:
+                    handle(user_prompt, df)
+
                     if selected_cols:
                         st.success("✅ Guided Mode Activated")
                         st.session_state.results = {"mode": "guided", "cols": selected_cols, "prompt": user_prompt}
