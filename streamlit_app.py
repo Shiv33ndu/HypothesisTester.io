@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from rapidfuzz import fuzz
-
+import re
 from modules.agent_layer import handle
 
 # -------------------------
@@ -36,73 +36,22 @@ if "ran_hypothesis" not in st.session_state:
 if "results" not in st.session_state:
     st.session_state.results = None
 
+# ------------------------------------
+# Column extraction from parenthesis
+# ------------------------------------
+def extract_from_parentheses(text):
+    """
+    Extracts all text enclosed in parentheses from a string.
+    Returns a list of the found strings.
+    """
+    return re.findall(r'\((.*?)\)', text)
+
+
+
+
 # -------------------------
 # Sidebar UI
 # -------------------------
-# with st.sidebar:
-#     st.title("⚙️ Controls")
-
-#     # Step 1: Upload file
-#     uploaded_file = st.file_uploader("📂 Upload your dataset (CSV)", type=["csv"])
-
-#     if uploaded_file is not None:
-#         df = pd.read_csv(uploaded_file)
-#         st.write("📊 Preview:", df.head())
-
-#         # Separate column types
-#         numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
-#         categorical_cols = df.select_dtypes(exclude=["int64", "float64"]).columns.tolist()
-
-#         # Step 2: Guided Mode (explicit column selection)
-#         st.subheader("🛠 Guided Mode: Select Columns")
-#         selected_cols = st.multiselect(
-#             "Choose columns for hypothesis testing (Skip if you don't know)",
-#             df.columns.tolist()
-#         )
-
-#         # Step 3: User enters natural language question
-#         st.subheader("💬 Ask Your Question")
-#         user_prompt = st.text_area(
-#             "Enter your hypothesis in plain English (e.g., 'Was sales higher last year than this year?')"
-#         )
-
-#         # Step 4: Run
-#         if st.button("🔎 Run Hypothesis Test"):
-#             if not user_prompt:
-#                 st.warning("Please enter a question before running!")
-#             else:
-#                 if selected_cols:
-#                     st.success("✅ Guided Mode Activated")
-#                     st.info(f"📂 Selected columns: {selected_cols}")
-#                     st.write(f"➡️ Interpreting question: {user_prompt}")
-#                     # TODO: Call LLM + hypothesis_test.py
-#                     st.session_state.results = {"mode": "guided", "cols": selected_cols, "prompt": user_prompt}
-
-#                 else:
-#                     st.success("🤖 Smart Mode Activated (auto-detecting columns)")
-#                     st.write(f"➡️ Interpreting question: {user_prompt}")
-
-#                     matched_cols = [
-#                         col for col in df.columns
-#                         if fuzz.partial_ratio(col.lower(), user_prompt.lower()) >= 70
-#                     ]
-
-#                     if matched_cols:
-#                         st.info(f"📂 Auto-selected columns: {matched_cols}")
-#                         # TODO: Call LLM + hypothesis_test.py
-#                         st.session_state.results = {"mode": "smart", "cols": matched_cols, "prompt": user_prompt}
-#                     else:
-#                         st.error("⚠️ Could not infer columns from your question. Please try Guided Mode.")
-
-#                 st.session_state.ran_hypothesis = True
-
-#     # Step 5: Chat box appears only after running hypothesis
-#     if st.session_state.ran_hypothesis:
-#         st.subheader("💬 Chat with Hypothesis AI")
-#         chat_prompt = st.text_area("Ask follow-up questions about results")
-#         if st.button("Send"):
-#             # TODO: Call LLM with st.session_state.results + chat_prompt
-#             st.write("🤖 AI: This is where the response will appear.")
 
 with st.sidebar:
     st.title("⚙️ Controls")
@@ -134,30 +83,87 @@ with st.sidebar:
             # User question
             st.subheader("💬 Ask Your Question")
             user_prompt = st.text_area(
-                "Enter your hypothesis in plain English (e.g., 'Was sales higher last year than this year?')"
-            )
+                "Enter your hypothesis in plain English,. Hint: using column names in parenthesis() will give better results",
+
+                placeholder="Is benefit score(benefits_score) negatively correlated with salary(salary_usd)?"
+                )
 
             # Run Hypothesis
             if st.button("🔎 Run Hypothesis Test"):
                 if not user_prompt:
                     st.warning("Please enter a question before running!")
-                else:
-                    handle(user_prompt, df)
+                
+                # New logic to handle user-enforced format
+                enclosed_cols = extract_from_parentheses(user_prompt)
+                
+                # Check if the user used the recommended parenthesis format
+                if enclosed_cols:
+                    # User provided column names, let's validate them
+                    matched_cols = [col for col in enclosed_cols if col in df.columns]
+                    
+                    # Check for typos
+                    if len(matched_cols) != len(enclosed_cols):
+                        st.error("⚠️ Column name mismatch! One or more of the columns you entered do not exist in the dataset. Please check for typos and try again.")
 
-                    if selected_cols:
-                        st.success("✅ Guided Mode Activated")
-                        st.session_state.results = {"mode": "guided", "cols": selected_cols, "prompt": user_prompt}
+                        # 1. Identify the columns with typos
+                        typo_cols = [col for col in enclosed_cols if col not in df.columns]
+                        
+                        # Generate the narrowed, fuzzy-matched hints
+                        fuzzy_matches = []
+                        for user_col in typo_cols:
+                            # Find the best fuzzy match for this specific column name
+                            best_match = None
+                            highest_ratio = 0
+                            
+                            for df_col in df.columns:
+                                ratio = fuzz.ratio(user_col.lower(), df_col.lower())
+                                if ratio > highest_ratio:
+                                    highest_ratio = ratio
+                                    best_match = df_col
+                            
+                            # Add the best match if it's above a certain threshold (e.g., 70)
+                            if highest_ratio >= 70 and best_match not in fuzzy_matches:
+                                fuzzy_matches.append(f"{user_col} -> {best_match}")
+
+                        st.error(f"Wrong column name you entered : {typo_cols} ")
+
+                        if fuzzy_matches:
+                            st.info(f"Did you mean: {', '.join(fuzzy_matches)} ?")
+
+                        st.stop()
+                    
+                    # If all columns match, proceed with the validated list
+                    st.success(f"Columns found from your input : {matched_cols}")
+                    
+                    st.info('Selecting the correct Hypothesis Test...')
+                    
+                    # moving forward to LLM layer to pass these values to work with and get the suggested test
+                    response = handle(user_prompt, df, matched_cols)
+
+                    # setting a dummy result as of now to show on the plot space
+                    st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response}
+                    st.session_state.ran_hypothesis = True
+
+                # Fallback to fuzzy search if no parentheses were used
+                else:
+                    # extracting the column names using fuzzy search
+                    matched_cols = [
+                        col for col in df.columns
+                        if fuzz.partial_ratio(col.lower(), user_prompt.lower()) >= 70
+                    ]
+                    if matched_cols:
+                        st.success("Inferred Columns :", matched_cols)
+                        
+                        st.info('Selecting the correct Hypothesis Test...')
+
+                        # passing the user prompt, and dataframe to LLM to identify correct Test for this 
+                        response = handle(user_prompt, df, matched_cols)    
+                        
+                        st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'respnonse' : response}
+
                     else:
-                        matched_cols = [
-                            col for col in df.columns
-                            if fuzz.partial_ratio(col.lower(), user_prompt.lower()) >= 70
-                        ]
-                        if matched_cols:
-                            st.success("🤖 Smart Mode Activated (auto-detecting columns)")
-                            st.session_state.results = {"mode": "smart", "cols": matched_cols, "prompt": user_prompt}
-                        else:
-                            st.error("⚠️ Could not infer columns. Try Guided Mode.")
-                            st.stop()
+                        st.error("⚠️ Could not infer columns. Try putting the relevant columns into parenthesis(column_name).")
+                        st.stop()
 
                     st.session_state.ran_hypothesis = True
 
@@ -201,20 +207,21 @@ with st.sidebar:
 if not st.session_state.ran_hypothesis:
     # Show welcome screen
     st.markdown(
-        """
-        ## 👋 Welcome to Hypothesis Tester AI
+    """
+    ## 👋 Welcome to Hypothesis Tester AI
 
-        Upload a dataset, ask a question, and let AI run the right hypothesis test for you.
+    Upload a dataset, ask a question, and let AI run the right hypothesis test for you.
 
-        ### How it works:
-        - 📂 Upload a CSV file from the sidebar  
-        - 🛠 Either choose columns yourself (Guided Mode)  
-        - 🤖 Or just ask in plain English (Smart Mode)  
-        - 🔎 Click **Run Hypothesis Test**  
-        - 📊 Results and plots will appear here  
-        - 💬 After results, chat with the AI about your data
-        """
+    ### How it works:
+    - 📂 **Upload a CSV file** from the sidebar.
+    - 📝 **Ask your question** in the text box below. For the best results, include the relevant column names in parentheses, like this:
+        **Example:** *Is the average salary (salary_usd) different for remote employees (remote_ratio)?*
+    - 🚀 Click **Run Hypothesis Test**.
+    - 📊 Results and plots will appear here.
+    - 💬 After the results, you can chat with the AI about your data.
+    """
     )
+
 else:
     # Results view
     st.subheader("📊 Hypothesis Test Results")

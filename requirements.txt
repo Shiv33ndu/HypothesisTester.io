@@ -7,8 +7,12 @@ matplotlib==3.10.5
 seaborn==0.13.2
 plotly==6.3.0
 rapidfuzz
+dotenv
 
 #agent related libs
 langchain 
 langchain-ollama # for local model connection
 ollama>=0.5      # if you have installed ollama locally then use this
+
+# if using gemini api
+google-genai
