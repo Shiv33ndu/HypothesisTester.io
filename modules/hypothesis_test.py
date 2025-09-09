@@ -1,98 +1,62 @@
 import numpy as np
 import pandas as pd
-from scipy import stats
+from typing import Dict, Any
 
-# --------------------------
-# 1. One-Sample t-test
-# --------------------------
-def one_sample_ttest(data: pd.Series, population_mean: float, tail: str = "two-sided"):
+from utils import data_prep 
+
+# =========================================================================
+# CENTRAL TEST DISPATCHER
+# This is the main function that coordinates everything from data_prep.py
+# =========================================================================
+
+def dispatch_test(llm_output_json: Dict[str, Any], df: pd.DataFrame) -> Dict[str, Any]:
     """
-    One-sample t-test: test if mean of sample differs from population mean.
-    tail: 'two-sided', 'greater', 'less'
+    Acts as the central dispatcher for all hypothesis tests.
+    It takes the LLM's plan and executes the correct test method.
     """
-    t_stat, p_value = stats.ttest_1samp(data, population_mean)
-
-    # Adjust p-value for one-tailed tests
-    if tail == "greater":
-        p_value = p_value / 2 if t_stat > 0 else 1 - (p_value / 2)
-    elif tail == "less":
-        p_value = p_value / 2 if t_stat < 0 else 1 - (p_value / 2)
-
-    return {"t_stat": t_stat, "p_value": p_value, "tail": tail}
-
-
-# --------------------------
-# 2. Two-Sample t-test
-# --------------------------
-def two_sample_ttest(group1: pd.Series, group2: pd.Series, tail: str = "two-sided", equal_var: bool = False):
-    """
-    Independent two-sample t-test: compare means of two groups.
-    tail: 'two-sided', 'greater', 'less'
-    """
-    t_stat, p_value = stats.ttest_ind(group1, group2, equal_var=equal_var)
-
-    if tail == "greater":
-        p_value = p_value / 2 if t_stat > 0 else 1 - (p_value / 2)
-    elif tail == "less":
-        p_value = p_value / 2 if t_stat < 0 else 1 - (p_value / 2)
-
-    return {"t_stat": t_stat, "p_value": p_value, "tail": tail}
-
-
-# --------------------------
-# 3. Paired t-test
-# --------------------------
-def paired_ttest(before: pd.Series, after: pd.Series, tail: str = "two-sided"):
-    """
-    Paired t-test: compare means of two related samples (e.g. before vs after).
-    """
-    t_stat, p_value = stats.ttest_rel(before, after)
-
-    if tail == "greater":
-        p_value = p_value / 2 if t_stat > 0 else 1 - (p_value / 2)
-    elif tail == "less":
-        p_value = p_value / 2 if t_stat < 0 else 1 - (p_value / 2)
-
-    return {"t_stat": t_stat, "p_value": p_value, "tail": tail}
-
-
-# --------------------------
-# 4. ANOVA
-# --------------------------
-def anova(*groups):
-    """
-    One-way ANOVA: compare means across 2+ groups.
-    """
-    f_stat, p_value = stats.f_oneway(*groups)
-    return {"f_stat": f_stat, "p_value": p_value}
-
-
-# --------------------------
-# 5. Chi-Square Test of Independence
-# --------------------------
-def chi_square_test(col1: pd.Series, col2: pd.Series):
-    """
-    Chi-square test for independence between two categorical variables.
-    """
-    contingency_table = pd.crosstab(col1, col2)
-    chi2, p_value, dof, expected = stats.chi2_contingency(contingency_table)
-    return {"chi2": chi2, "p_value": p_value, "dof": dof, "expected": expected}
-
-
-# --------------------------
-# 6. Correlation Test
-# --------------------------
-def correlation_test(x: pd.Series, y: pd.Series, method: str = "pearson"):
-    """
-    Correlation test: Pearson (default), Spearman, or Kendall.
-    """
-    if method == "pearson":
-        corr, p_value = stats.pearsonr(x, y)
-    elif method == "spearman":
-        corr, p_value = stats.spearmanr(x, y)
-    elif method == "kendall":
-        corr, p_value = stats.kendalltau(x, y)
-    else:
-        raise ValueError("method must be 'pearson', 'spearman', or 'kendall'")
+    test_name = llm_output_json['test_name']
+    params = llm_output_json['test_parameters']
     
-    return {"correlation": corr, "p_value": p_value, "method": method}
+    print(f"test_name : {test_name}")
+
+    try:
+        # Step 1: Data Preparation based on test type
+        if test_name in ["Two-Sample Independent t-test", "Mann-Whitney U Test"]:
+            prepared_data = data_prep.prepare_data_for_ttest(df, params)
+            test_results = data_prep.run_two_sample_ttest(prepared_data, params) if test_name == "Two-Sample Independent t-test" else data_prep.run_mann_whitney_u(prepared_data, params)
+        elif test_name in ["ANOVA", "Kruskal-Wallis H Test"]:
+            prepared_data = data_prep.prepare_data_for_anova(df, params)
+            test_results = data_prep.run_anova(prepared_data, params) if test_name == "ANOVA" else data_prep.run_kruskal(prepared_data, params)
+        elif test_name in ["Chi-Square Test of Independence", "Fisher's Exact Test"]:
+            prepared_data = data_prep.prepare_data_for_chi_square(df, params)
+            test_results = data_prep.run_chi_square_independence(prepared_data) if test_name == "Chi-Square Test of Independence" else data_prep.run_fishers_exact(prepared_data)
+        else:
+            # For tests that don't need complex data prep, run them directly
+            if test_name == "One-Sample t-test":
+                test_results = data_prep.run_one_sample_ttest(df, params)
+            elif test_name == "Paired t-test":
+                test_results = data_prep.run_paired_ttest(df, params)
+            elif test_name == "One-Sample Z-test":
+                test_results = data_prep.run_ztest(df, params)
+            elif test_name == "Linear Regression Analysis":
+                test_results = data_prep.run_linear_regression(df, params)
+            elif test_name == "Correlation Test (Pearson/Spearman)":
+                test_results = data_prep.run_correlation(df, params)
+            elif test_name == "Wilcoxon Signed-Rank Test":
+                test_results = data_prep.run_wilcoxon(df, params)
+            elif test_name == "Chi-Square Goodness-of-Fit Test":
+                test_results = data_prep.run_chi_square_goodness_of_fit(df, params)
+            else:
+                return {"error": f"Test '{test_name}' is not a recognized or implemented test."}
+
+        # Step 3: Return the results in a final, clean format
+        
+        print('in hypothesis_test')
+        print(llm_output_json)
+        
+        return llm_output_json, test_results
+
+    except Exception as e:
+        return {"error": f"An error occurred during test execution: {str(e)}"}
+
+

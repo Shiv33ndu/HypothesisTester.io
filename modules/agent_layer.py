@@ -1,15 +1,18 @@
 # for using local LLM models
 # from langchain_ollama.llms import OllamaLLM    
 
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_google_genai import ChatGoogleGenerativeAI
+import os
 import pandas as pd
 from dotenv import load_dotenv
-import os
-from modules.agent_instruct import classify, reading
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_google_genai import ChatGoogleGenerativeAI
+
+from modules.agent_instruct import classify, reading, classify_and_structure
 from utils.data_reader import prepare_data_context
-import json
-import re
+from utils.jsonfy import give_json
+from modules.hypothesis_test import dispatch_test
+
+
 
 load_dotenv()
 
@@ -39,47 +42,28 @@ classify_chain = classify_prompt | gemini_llm
 
 
 # reading model
-reading_prompt = ChatPromptTemplate.from_template(reading())
+reading_prompt = ChatPromptTemplate.from_template(classify_and_structure())
 reading_chain = reading_prompt | gemini_llm
 # ============================================================
 
 
 def handle(user_prompt : str, df : pd.DataFrame, columns : list[str]):
-    print(user_prompt)
-    print(df.head()) 
+    # print(user_prompt)
+    # print(df.head()) 
 
-    data_context_json = prepare_data_context(df, columns)
-
-    # we will pass this JSON to simple model to know if it can read every element of this 
-    for chunk in reading_chain.stream({'data_context_json': data_context_json}):
-        print(chunk.content, end='', flush=True)
-
-
-    """
-
-    # for chunk in chain.stream({"user_prompt": user_prompt, "dataframe": df}):
-    #     print(chunk, end='', flush=True)
+    data_context_json = prepare_data_context(df, columns)  # using data_reader to get the whole context of the data for the LLM
+    
     res = ''
-    for chunk in classify_chain.stream({"user_prompt": user_prompt, "dataframe": df, "columns":columns}):
-        print(chunk.text, end='', flush=True)
-        res += chunk.text
+
+    # we will pass this JSON to simple model to infer from this and give us structured variables by classifying the test and parameters 
+    for chunk in reading_chain.stream({'data_context_json': data_context_json, 'dataframe': df, 'user_prompt': user_prompt}):
+        # print(chunk.content, end='', flush=True)
+        res += chunk.content
     
-    # Use a regex to extract the content between the first { and the last }
-    json_match = re.search(r'\{.*\}', res, re.DOTALL)
+    response = give_json(res)                     # we converting the received json like string to actual json format
+
+
+    response, test_results = dispatch_test(response, df)     # now we got the test names, and columns, test params, we need to perform Hypothesis Testing on this
+
+    return response, test_results
     
-    if json_match:
-        # If a JSON-like object is found, use that for parsing
-        json_string = json_match.group(0)
-    else:
-        # Fallback to the raw string if no JSON is found
-        json_string = res
-        
-    try:
-        response = json.loads(json_string)
-        return response
-    except json.JSONDecodeError as e:
-        print(f"Error decoding JSON response from LLM: {e}")
-        print("Raw LLM response:")
-        print(repr(res)) # Using repr() shows hidden characters like newlines
-        return None
-    """

@@ -1,8 +1,12 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 from rapidfuzz import fuzz
 import re
 from modules.agent_layer import handle
+import plotly.express as px
+import plotly.graph_objects as go
+from scipy.stats import t, norm
 
 # -------------------------
 # Streamlit UI
@@ -65,6 +69,9 @@ with st.sidebar:
     with tab1:
         uploaded_file = st.file_uploader("📂 Upload your dataset (CSV)", type=["csv"])
 
+        if uploaded_file is None:
+            st.session_state.ran_hypothesis = False
+
         if uploaded_file is not None:
             df = pd.read_csv(uploaded_file)
             st.write("📊 Preview:", df.head())
@@ -72,13 +79,6 @@ with st.sidebar:
             # Separate column types
             numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
             categorical_cols = df.select_dtypes(exclude=["int64", "float64"]).columns.tolist()
-
-            # Guided Mode
-            st.subheader("🛠 Guided Mode: Select Columns")
-            selected_cols = st.multiselect(
-                "Choose columns for hypothesis testing (Skip if you don't know)",
-                df.columns.tolist()
-            )
 
             # User question
             st.subheader("💬 Ask Your Question")
@@ -138,10 +138,13 @@ with st.sidebar:
                     st.info('Selecting the correct Hypothesis Test...')
                     
                     # moving forward to LLM layer to pass these values to work with and get the suggested test
-                    response = handle(user_prompt, df, matched_cols)
+                    response, test_results = handle(user_prompt, df, matched_cols)   
+                    
+                    # print('in code')
+                    # print(response)  
 
                     # setting a dummy result as of now to show on the plot space
-                    st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response}
+                    st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results}
                     st.session_state.ran_hypothesis = True
 
                 # Fallback to fuzzy search if no parentheses were used
@@ -157,15 +160,19 @@ with st.sidebar:
                         st.info('Selecting the correct Hypothesis Test...')
 
                         # passing the user prompt, and dataframe to LLM to identify correct Test for this 
-                        response = handle(user_prompt, df, matched_cols)    
+                        response, test_results = handle(user_prompt, df, matched_cols)    
                         
-                        st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'respnonse' : response}
+                        # print('in code')
+                        # print(response)
+                        
+                        st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results}
+                        st.session_state.ran_hypothesis = True
 
                     else:
                         st.error("⚠️ Could not infer columns. Try putting the relevant columns into parenthesis(column_name).")
                         st.stop()
 
-                    st.session_state.ran_hypothesis = True
+                    
 
     # -------------------------
     # TAB 2: Chat (only after hypothesis ran)
@@ -201,9 +208,96 @@ with st.sidebar:
             st.info("⚠️ Run a hypothesis test first to enable chat.")
 
 
-# -------------------------
+
+
+# --------------------------------------------------------------------------------------------------------------
 # Main content area
-# -------------------------
+# --------------------------------------------------------------------------------------------------------------
+
+
+# =========================================================================
+# PLOTTING FUNCTIONS
+# =========================================================================
+
+def create_grouped_boxplot(df, dependent_var, independent_var, title):
+    """Creates a plotly box plot for comparing groups."""
+    fig = px.box(df, x=independent_var, y=dependent_var, 
+                 title=title, 
+                 points="all", 
+                 color=independent_var)
+    return fig
+
+def create_scatter_plot(df, x_var, y_var, title):
+    """Creates a plotly scatter plot for correlation/regression."""
+    fig = px.scatter(df, x=x_var, y=y_var, 
+                     title=title, 
+                     trendline="ols",
+                     hover_data=df.columns)
+    return fig
+
+def create_bar_chart(df, x_var, y_var, title):
+    """Creates a plotly bar chart for visualizing categorical relationships."""
+    fig = px.bar(df, x=x_var, y=y_var, 
+                 title=title, 
+                 text_auto='.2s')
+    return fig
+
+def create_histogram(df, column, title):
+    """Creates a plotly histogram for a single variable."""
+    fig = px.histogram(df, x=column, title=title)
+    return fig
+
+def create_significance_plot_for_ttest(dependent_var_data, test_stat, p_value, tail_type, title, alpha=0.05):
+    """
+    Creates a plot visualizing the t-distribution with significance regions.
+    The test statistic line is colored based on the p-value.
+    """
+    df_val = len(dependent_var_data) - 1 # Degrees of freedom
+    x_values = np.linspace(-4, 4, 1000)
+    y_values = t.pdf(x_values, df_val)
+    
+    fig = go.Figure()
+    
+    # Plot the t-distribution curve
+    fig.add_trace(go.Scatter(x=x_values, y=y_values, mode='lines', name='t-Distribution'))
+    
+    # Calculate critical values
+    if tail_type == "two-tailed":
+        critical_value = t.ppf(1 - alpha/2, df_val)
+        # Rejection region
+        fig.add_vrect(x0=critical_value, x1=4, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region", annotation_position="top left")
+        fig.add_vrect(x0=-4, x1=-critical_value, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region", annotation_position="top right")
+    elif tail_type == "left-tailed":
+        critical_value = t.ppf(alpha, df_val)
+        fig.add_vrect(x0=-4, x1=critical_value, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region", annotation_position="top right")
+    else: # right-tailed
+        critical_value = t.ppf(1 - alpha, df_val)
+        fig.add_vrect(x0=critical_value, x1=4, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region", annotation_position="top left")
+        
+    # Determine significance and color
+    is_significant = p_value <= alpha
+    stat_line_color = "red" if is_significant else "green"
+    
+    # Plot the test statistic line
+    fig.add_vline(x=test_stat, line_dash="dash", line_color=stat_line_color, 
+                  annotation_text=f"Test Stat: {test_stat:.2f} (p={p_value:.3f})",
+                  annotation_position="bottom right")
+
+    # Add a title based on the result
+    significance_text = "Statistically Significant" if is_significant else "Not Statistically Significant"
+    fig.update_layout(title=f"{title}<br><sup>Result: {significance_text}</sup>",
+                      xaxis_title="T-Statistic",
+                      yaxis_title="Probability Density",
+                      showlegend=False)
+
+    return fig
+
+
+
+# -----------------------------
+# MAIN CONTENT VIEW TAB CODES
+# -----------------------------
+
 if not st.session_state.ran_hypothesis:
     # Show welcome screen
     st.markdown(
@@ -222,14 +316,79 @@ if not st.session_state.ran_hypothesis:
     """
     )
 
+# Results view
 else:
-    # Results view
     st.subheader("📊 Hypothesis Test Results")
+    results = st.session_state.results
+    print('In streamlit')
+    print(results)
+    test_name = results.get('test_name')
+    params = results.get('test_parameters', {})
+    test_results = results.get('test_results', {})
 
     tab1, tab2 = st.tabs(["📈 Plots", "📜 Test Summary"])
     with tab1:
-        st.info("This is where plots will appear.")
-        # TODO: Replace with st.plotly_chart(fig) later
+        st.write("#### Data Visualization")
+        
+        # Plotting logic based on test type
+        if test_name in ["Two-Sample Independent t-test", "One-Sample t-test"]:
+            dependent_var = params.get('dependent_variable')
+            independent_var = params.get('independent_variables', [None])[0]
+            t_statistic = test_results.get('t_statistic')
+            p_value = test_results.get('p_value')
+            tail = params.get('tail')
+            
+            if all([dependent_var, independent_var, t_statistic is not None, p_value is not None, tail]):
+                fig = create_significance_plot_for_ttest(df, dependent_var, independent_var, t_statistic, p_value, tail)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not generate t-test significance plot due to missing parameters.")
+        
+        elif test_name in ["ANOVA", "Kruskal-Wallis H Test", "Mann-Whitney U Test"]:
+            dependent_var = params.get('dependent_variable')
+            independent_var = params.get('independent_variables', [None])[0]
+            if dependent_var and independent_var:
+                fig = create_grouped_boxplot(df, dependent_var, independent_var, 
+                                             f"Distribution of {dependent_var} by {independent_var}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not generate plot due to missing parameters.")
+        
+        elif test_name in ["Correlation Test (Pearson/Spearman)", "Linear Regression Analysis"]:
+            x_var = params.get('columns')[0]
+            y_var = params.get('columns')[1]
+            if x_var and y_var:
+                fig = create_scatter_plot(df, x_var, y_var,
+                                          f"Relationship between {x_var} and {y_var}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not generate plot due to missing parameters.")
+
+        elif test_name in ["Chi-Square Test of Independence", "Fisher's Exact Test"]:
+            col1 = params.get('columns')[0]
+            col2 = params.get('columns')[1]
+            if col1 and col2:
+                contingency_table = pd.crosstab(df[col1], df[col2])
+                fig = create_bar_chart(contingency_table, col1, col2,
+                                       f"Contingency Table of {col1} and {col2}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not generate plot due to missing parameters.")
+        
+        else: # Default plot for single-variable tests
+            dependent_var = params.get('dependent_variable')
+            if dependent_var:
+                fig = create_histogram(df, dependent_var, f"Distribution of {dependent_var}")
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("Could not generate a suitable plot for this test.")
+
     with tab2:
-        st.write("### Summary")
-        st.json(st.session_state.results)  # placeholder for now
+        st.write("#### Summary")
+        # TODO: Replace with LLM-generated summary for better readability
+        st.markdown(f"**Test Name:** `{results.get('test_name')}`")
+        st.markdown(f"**Reasoning:** `{results.get('reasoning')}`")
+        st.write("---")
+        st.write("#### Raw Results (for developers)")
+        st.json(results)
+

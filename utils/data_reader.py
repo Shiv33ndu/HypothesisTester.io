@@ -8,7 +8,7 @@ This file is repsonsible for following things:
 3 - It reads the dataframe and makes it more comprehensive for the LLM by extracting values like: 
 
     - Indentifies the Numerical & Categorical columns in passed column from Frontend User Input
-    - Normality Test : Runs a Shapiro-Wilk\KS-Test test on the numeric columns(if present in user given columns) to check if data is from normal distribution or not. This is a key assumption for parametric tests like the t-test and ANOVA.
+    - Normality Test : Runs a Shapiro-Wilk or KS-Test test on the numeric columns(if present in user given columns) to check if data is from normal distribution or not. This is a key assumption for parametric tests like the t-test and ANOVA.
     - Homoscedasiticity Test : Runs a levene test if, the given columns have exactly one numerical and one categorical column
 
     - It also gives count of total_rows, missing values, count of unique values in categorical data, statistical description of numerical columns(if any)    
