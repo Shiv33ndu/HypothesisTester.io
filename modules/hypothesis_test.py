@@ -9,7 +9,7 @@ from utils import data_prep
 # This is the main function that coordinates everything from data_prep.py
 # =========================================================================
 
-def dispatch_test(llm_output_json: Dict[str, Any], df: pd.DataFrame) -> Dict[str, Any]:
+def dispatch_test(llm_output_json: Dict[str, Any], df: pd.DataFrame):
     """
     Acts as the central dispatcher for all hypothesis tests.
     It takes the LLM's plan and executes the correct test method.
@@ -28,35 +28,38 @@ def dispatch_test(llm_output_json: Dict[str, Any], df: pd.DataFrame) -> Dict[str
             prepared_data = data_prep.prepare_data_for_anova(df, params)
             test_results = data_prep.run_anova(prepared_data, params) if test_name == "ANOVA" else data_prep.run_kruskal(prepared_data, params)
         elif test_name in ["Chi-Square Test of Independence", "Fisher's Exact Test"]:
-            prepared_data = data_prep.prepare_data_for_chi_square(df, params)
+            prepared_data = data_prep.prepare_data_for_chi_square(df, llm_output_json)
             test_results = data_prep.run_chi_square_independence(prepared_data) if test_name == "Chi-Square Test of Independence" else data_prep.run_fishers_exact(prepared_data)
         else:
             # For tests that don't need complex data prep, run them directly
             if test_name == "One-Sample t-test":
                 test_results = data_prep.run_one_sample_ttest(df, params)
             elif test_name == "Paired t-test":
-                test_results = data_prep.run_paired_ttest(df, params)
+                test_results = data_prep.run_paired_ttest(df, llm_output_json)
             elif test_name == "One-Sample Z-test":
                 test_results = data_prep.run_ztest(df, params)
             elif test_name == "Linear Regression Analysis":
                 test_results = data_prep.run_linear_regression(df, params)
             elif test_name == "Correlation Test (Pearson/Spearman)":
-                test_results = data_prep.run_correlation(df, params)
+                print('Run Run')
+                test_results = data_prep.run_correlation(df, llm_output_json)
+                print('Ran Ran')
             elif test_name == "Wilcoxon Signed-Rank Test":
-                test_results = data_prep.run_wilcoxon(df, params)
+                test_results = data_prep.run_wilcoxon(df, llm_output_json)
             elif test_name == "Chi-Square Goodness-of-Fit Test":
-                test_results = data_prep.run_chi_square_goodness_of_fit(df, params)
+                test_results = data_prep.run_chi_square_goodness_of_fit(df, llm_output_json)
             else:
-                return {"error": f"Test '{test_name}' is not a recognized or implemented test."}
+                return {"error": f"Test '{test_name}' is not a recognized or implemented test."}, None
 
         # Step 3: Return the results in a final, clean format
         
-        print('in hypothesis_test')
-        print(llm_output_json)
+        print('\n\n--------------------Hypothesis_test---------------------')
+        print(test_results)
+        print('\n\n')
         
         return llm_output_json, test_results
 
     except Exception as e:
-        return {"error": f"An error occurred during test execution: {str(e)}"}
-
+        error_msg = {"error": str(e)}
+        return {'result': 'Empty Values from exception'}, error_msg
 
