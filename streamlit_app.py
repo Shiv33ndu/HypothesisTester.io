@@ -8,6 +8,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 from scipy.stats import t, norm
 
+from modules.agent_layer import check_user_question
+
 # -------------------------
 # Streamlit UI
 # -------------------------
@@ -134,18 +136,33 @@ with st.sidebar:
                     
                     # If all columns match, proceed with the validated list
                     st.success(f"Columns found from your input : {matched_cols}")
-                    
-                    st.info('Selecting the correct Hypothesis Test...')
+                    info_placeholder = st.empty()
+                    info_placeholder.info('🔍  Choosing the right test …')
                     
                     # moving forward to LLM layer to pass these values to work with and get the suggested test
-                    response, test_results = handle(user_prompt, df, matched_cols)   
+                    check_question = check_user_question(user_prompt, df) 
                     
-                    # print('in code')
-                    # print(response)  
+                    info_placeholder.empty()          # remove old banner
 
-                    # setting a dummy result as of now to show on the plot space
-                    st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results}
-                    st.session_state.ran_hypothesis = True
+                    if check_question["decision"] == "descriptive":
+                        with info_placeholder.container():
+                            st.warning("⚠️  Not a hypothesis-testing question.")
+                            st.markdown(
+                                f"*Descriptive answer:*  \n"
+                                f"**{check_question['answer']}**"
+                            )
+                            with st.expander("Why no test was run"):
+                                st.write(check_question["reason"])
+                    
+                    else:
+                        response, test_results = handle(user_prompt, df, matched_cols)   
+                    
+                        # print('in code')
+                        # print(response)  
+
+                        # setting a dummy result as of now to show on the plot space
+                        st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results}
+                        st.session_state.ran_hypothesis = True
 
                 # Fallback to fuzzy search if no parentheses were used
                 else:
@@ -155,18 +172,37 @@ with st.sidebar:
                         if fuzz.partial_ratio(col.lower(), user_prompt.lower()) >= 70
                     ]
                     if matched_cols:
-                        st.success("Inferred Columns :", matched_cols)
+                        st.success(f"Inferred Columns : {matched_cols}")
                         
-                        st.info('Selecting the correct Hypothesis Test...')
+                        info_placeholder = st.empty()
+
+                        info_placeholder.info('🔍  Choosing the right test …')
 
                         # passing the user prompt, and dataframe to LLM to identify correct Test for this 
-                        response, test_results = handle(user_prompt, df, matched_cols)    
+                        check_question = check_user_question(user_prompt, df) 
+                    
+                        info_placeholder.empty()          # remove old banner
+
+                        if check_question["decision"] == "descriptive":
+                            with info_placeholder.container():
+                                st.warning("⚠️  Not a hypothesis-testing question.")
+                                st.markdown(
+                                    f"*Descriptive answer:*  \n"
+                                    f"**{check_question['answer']}**"
+                                )
+                                with st.expander("Why no test was run"):
+                                    st.write(check_question["reason"])
+
+                        else:
+                            response, test_results = handle(user_prompt, df, matched_cols)   
                         
-                        # print('in code')
-                        # print(response)
+                            # print('in code')
+                            # print(response)  
+
+                            # setting a dummy result as of now to show on the plot space
+                            st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results}
                         
-                        st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results}
-                        st.session_state.ran_hypothesis = True
+                            st.session_state.ran_hypothesis = True
 
                     else:
                         st.error("⚠️ Could not infer columns. Try putting the relevant columns into parenthesis(column_name).")
@@ -319,12 +355,12 @@ if not st.session_state.ran_hypothesis:
 # Results view
 else:
     st.subheader("📊 Hypothesis Test Results")
-    results = st.session_state.results
+    results = st.session_state.results['response']
     print('In streamlit')
     print(results)
     test_name = results.get('test_name')
     params = results.get('test_parameters', {})
-    test_results = results.get('test_results', {})
+    test_results = st.session_state.results['test_results'].get('test_results', {})
 
     tab1, tab2 = st.tabs(["📈 Plots", "📜 Test Summary"])
     with tab1:
@@ -355,8 +391,8 @@ else:
                 st.warning("Could not generate plot due to missing parameters.")
         
         elif test_name in ["Correlation Test (Pearson/Spearman)", "Linear Regression Analysis"]:
-            x_var = params.get('columns')[0]
-            y_var = params.get('columns')[1]
+            x_var = results.get('columns')[0]
+            y_var = results.get('columns')[1]
             if x_var and y_var:
                 fig = create_scatter_plot(df, x_var, y_var,
                                           f"Relationship between {x_var} and {y_var}")
@@ -365,8 +401,8 @@ else:
                 st.warning("Could not generate plot due to missing parameters.")
 
         elif test_name in ["Chi-Square Test of Independence", "Fisher's Exact Test"]:
-            col1 = params.get('columns')[0]
-            col2 = params.get('columns')[1]
+            col1 = results.get('columns')[0]
+            col2 = results.get('columns')[1]
             if col1 and col2:
                 contingency_table = pd.crosstab(df[col1], df[col2])
                 fig = create_bar_chart(contingency_table, col1, col2,
