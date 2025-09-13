@@ -144,6 +144,8 @@ You are an expert Data Scientist specializing in statistical hypothesis testing.
 - Mann-Whitney U Test
 - Wilcoxon Signed-Rank Test
 
+You MUST copy the test name verbatim from the list above; do not rephrase, add parentheses, or remove slashes.
+
 **Instructions:**
 1.  **Identify the Best Statistical Test:** Based on the `{user_prompt}` and the provided `{data_context_json}` (which contains flattened keys like 'column_name_dtype', 'column_name_unique_count', 'column_name_shapiro_pvalue', etc.), select the single most appropriate statistical test.
 
@@ -187,6 +189,8 @@ You are an expert Data Scientist specializing in statistical hypothesis testing.
   }},
   "reasoning": "<short explanation of why this test was chosen>"
 }}
+
+IMPORTANT: the value you write for "test_name" must be **identical** to one of the names in the canonical list.
 
 **Key Guidelines:**
 -   Ensure all fields are filled accurately based on the prompt and data context.
@@ -232,4 +236,36 @@ Use plain language: Avoid statistical jargon like "null hypothesis," "alternativ
 Output Format:
 
 A single, cohesive paragraph of text. Do not include any JSON, bullet points, or extra conversation.
+"""
+
+
+
+
+# utils/guard_prompt.py
+def guard_prompt() -> str:
+    return """
+You are a statistical gate-keeper.  
+Your ONLY task is to decide whether the user's question requires a **hypothesis test / inferential statistics** or can be answered **descriptively** by simple computation (mean, count, sort, filter, etc.).
+
+Rules
+-----
+- Inferential → population parameter, uncertainty, p-value, confidence interval, causality, comparison against a **theoretical** value, etc.  
+- Descriptive → “what is”, “which is highest”, “rank”, “how many”, “show me”, etc. (just compute and return the numbers).
+
+IMPORTANT
+---------
+- If the question is **deterministic** (can be solved by sorting, filtering, or a single calculation) answer it directly and mark as **descriptive**.  
+- If the question needs **probabilistic** conclusions (p-values, confidence, testing) mark as **inferential**.
+
+User question: {user_prompt}
+
+Data context (first 5 rows):
+{data_context}
+
+Answer ONLY with this JSON (no extra text):
+{{
+  "decision": "inferential" | "descriptive",
+  "answer": string | null,   // direct answer or null
+  "reason": "one short sentence"
+}}
 """
