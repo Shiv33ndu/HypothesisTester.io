@@ -293,7 +293,7 @@ def run_ztest(df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
     z_stat, p_val = ztest(cleaned.dropna(), value=pop_mean, alternative=params["tail"], ddof=pop_std)
     return {"z_statistic": float(z_stat), "p_value": float(p_val)}
 
-def run_anova(groups: List[pd.Series], params: Dict[str, Any]) -> Dict[str, Any]:
+def run_anova(groups: List[pd.Series]) -> Dict[str, Any]:
     f_stat, p_val = stats.f_oneway(*groups)
     return {"f_statistic": float(f_stat), "p_value": float(p_val)}
 
@@ -339,7 +339,7 @@ def run_kruskal(groups: List[pd.Series], params: Dict[str, Any]) -> Dict[str, An
     h_stat, p_val = stats.kruskal(*groups)
     return {"h_statistic": float(h_stat), "p_value": float(p_val)}
 
-def run_chi_square_independence(contingency_table: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
+def run_chi_square_independence(contingency_table: pd.DataFrame) -> Dict[str, Any]:
     chi2, p_val, _, _ = stats.chi2_contingency(contingency_table)
     return {"chi2_statistic": float(chi2), "p_value": float(p_val)}
 
@@ -350,6 +350,6 @@ def run_chi_square_goodness_of_fit(df: pd.DataFrame, params: Dict[str, Any]) -> 
     chi2, p_val = stats.chisquare(f_obs=observed, f_exp=expected)
     return {"chi2_statistic": float(chi2), "p_value": float(p_val)}
 
-def run_fishers_exact(contingency_table: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
+def run_fishers_exact(contingency_table: pd.DataFrame) -> Dict[str, Any]:
     odds_ratio, p_val = stats.fisher_exact(contingency_table)
     return {"odds_ratio": float(odds_ratio), "p_value": float(p_val)}
