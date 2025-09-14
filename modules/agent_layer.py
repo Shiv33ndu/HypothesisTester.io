@@ -7,10 +7,12 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from modules.agent_instruct import classify, classify_and_structure, guard_prompt
+from modules.agent_instruct import classify_and_structure, guard_prompt
 from utils.data_reader import prepare_data_context
 from utils.jsonfy import give_json
 from modules.hypothesis_test import dispatch_test
+
+from typing import Dict, Any
 
 
 
@@ -36,19 +38,14 @@ gemini_llm = ChatGoogleGenerativeAI(model = "gemini-1.5-flash",
 
 # ========================= Chain & Prompts ==================
 
-# classification model (might remove later one)
-classify_prompt = ChatPromptTemplate.from_template(classify())
-classify_chain = classify_prompt | gemini_llm
+# gatekeep and check the user question model
+check_prompt = ChatPromptTemplate.from_template(guard_prompt())
+check_chain = check_prompt | gemini_llm
 
 
 # classify and structure model
 reading_prompt = ChatPromptTemplate.from_template(classify_and_structure())
 reading_chain = reading_prompt | gemini_llm
-
-
-# gatekeep and check the user question model
-check_prompt = ChatPromptTemplate.from_template(guard_prompt())
-check_chain = check_prompt | gemini_llm
 
 # ============================================================
 
@@ -110,3 +107,14 @@ def check_user_question(user_prompt: str, df: pd.DataFrame):
     checked_question_json = give_json(res)
 
     return checked_question_json  
+
+
+
+# A summarizer layer to summarize the statistical jargons in human launguage for non techincal users 
+def summarize(user_prompt: str, df: pd.DataFrame, llm_response: Dict[str, Any], test_results: Dict[str, Any]):
+    TODO: f"we will invoke a LLM layer to do the summarization of data, test stats to user"
+
+
+
+def chat():
+    pass
