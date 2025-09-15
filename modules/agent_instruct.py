@@ -38,6 +38,85 @@ Answer ONLY with this JSON (no extra text):
 # Also extract the correct parameters for the opted test 
 # ========================================================================
 
+# def classify_and_structure() -> str:
+#     return """
+# You are an expert Data Scientist specializing in statistical hypothesis testing. Your task is to analyze a user's natural language question and a corresponding dataset to determine the most appropriate statistical test, then extract all the necessary parameters for execution.
+
+# **Input Analysis:**
+# -   **User Prompt:** {user_prompt}
+# -   **Data Context:** {data_context_json}
+# -   **Raw Data Preview:** {dataframe}
+
+# **Canonical Test Names:**
+# - One-Sample t-test
+# - Two-Sample Independent t-test
+# - Paired t-test
+# - One-Sample Z-test
+# - ANOVA
+# - Kruskal-Wallis H Test
+# - Chi-Square Test of Independence
+# - Chi-Square Goodness-of-Fit Test
+# - Fisher's Exact Test
+# - Correlation Test (Pearson/Spearman)
+# - Linear Regression Analysis
+# - Mann-Whitney U Test
+# - Wilcoxon Signed-Rank Test
+
+# You MUST copy the test name verbatim from the list above; do not rephrase, add parentheses, or remove slashes.
+
+# **Instructions:**
+# 1.  **Identify the Best Statistical Test:** Based on the `{user_prompt}` and the provided `{data_context_json}` (which contains flattened keys like 'column_name_dtype', 'column_name_unique_count', 'column_name_shapiro_pvalue', etc.), select the single most appropriate statistical test.
+
+# 2.  **Formulate Hypotheses & Rationale:** Generate clear Null (H₀) and Alternative (H₁) hypotheses in plain English and a brief, concise rationale for your test choice.
+
+# 3.  **Extract All Test Parameters:** Based on the user's prompt and the data context, fill in the necessary fields in the `test_parameters` object.
+#     -   `dependent_variable`: The column representing the measured outcome.
+#     -   `independent_variables`: A list of columns representing the groups or predictors.
+#     -   `tail`: The test tail.
+#     -   `population_mean`: The target value for a one-sample test.
+#     -   `population_std`: The known standard deviation for a Z-test.
+#     -   `sample_groups`: A list of specific values to filter from a categorical column.
+#     -   `expected_values`: A list of expected frequencies or proportions.
+#     -   `options`: A nested dictionary for test configurations like `equal_variance` or `paired`.
+    
+# 4.  **Interpret P-Values:**
+#     -   **For Normality (Shapiro):** If a numerical column has a `shapiro_pvalue` less than 0.05, assume the data is not normally distributed.
+#     -   **For Equal Variance (Levene):** If the data context includes a `levene_pvalue`, check its value. If it is less than 0.05, assume unequal variances and set the `equal_variance` option to `false`. Otherwise, set it to `true`.
+
+# **Output Format (JSON only, no extra text):**
+# {{
+#   "test_name": "<name of hypothesis test>",
+#   "columns": ["<col1>", "<col2>", "..."],
+#   "hypotheses": {{
+#     "H0": "<null hypothesis statement in plain English>",
+#     "H1": "<alternative hypothesis statement in plain English>"
+#   }},
+#   "test_parameters": {{
+#     "dependent_variable": "<name of the column | null>",
+#     "independent_variables": ["<name of the column>", "..."],
+#     "tail": "<two-tailed | left-tailed | right-tailed | not_applicable>",
+#     "population_mean": <value | null>,
+#     "population_std": <value | null>,
+#     "sample_groups": ["<group1>", "<group2>", "..."],
+#     "expected_values": <[value1, value2, ...] | null>,
+#     "options": {{
+#       "equal_variance": <true | false | null>,
+#       "paired": <true | false | null>,
+#       "method": "<pearson | spearman | null>"
+#     }}
+#   }},
+#   "reasoning": "<short explanation of why this test was chosen>"
+# }}
+
+# IMPORTANT: the value you write for "test_name" must be **identical** to one of the names in the canonical list.
+
+# **Key Guidelines:**
+# -   Ensure all fields are filled accurately based on the prompt and data context.
+# -   If a parameter is not relevant, set its value to `null`.
+# -   The `pandas_query` must be a valid, single-line Python string.
+# -   Your entire response must be a single, valid JSON object.
+# """
+
 def classify_and_structure() -> str:
     return """
 You are an expert Data Scientist specializing in statistical hypothesis testing. Your task is to analyze a user's natural language question and a corresponding dataset to determine the most appropriate statistical test, then extract all the necessary parameters for execution.
@@ -65,23 +144,31 @@ You are an expert Data Scientist specializing in statistical hypothesis testing.
 You MUST copy the test name verbatim from the list above; do not rephrase, add parentheses, or remove slashes.
 
 **Instructions:**
-1.  **Identify the Best Statistical Test:** Based on the `{user_prompt}` and the provided `{data_context_json}` (which contains flattened keys like 'column_name_dtype', 'column_name_unique_count', 'column_name_shapiro_pvalue', etc.), select the single most appropriate statistical test.
+1.  **Identify the Best Statistical Test:** Based on the `{user_prompt}` and the provided `{data_context_json}`, select the single most appropriate statistical test.
 
-2.  **Formulate Hypotheses & Rationale:** Generate clear Null (H₀) and Alternative (H₁) hypotheses in plain English and a brief, concise rationale for your test choice.
+2.  **CRITICAL: Handling Numerical vs. Categorical Hypotheses:**
+    -   When the user's question involves a relationship between one numerical variable and one categorical variable (identifiable by `_dtype: 'object'`), you MUST first determine if the categorical variable is **nominal** (unordered) or **ordinal** (ordered) by examining its `_unique_values`.
+    -   **If the categorical variable is ORDINAL** (e.g., ['Low', 'Medium', 'High'] or ['EN', 'MI', 'SE', 'EX']):
+        -   Choose the `"Correlation Test (Pearson/Spearman)"`.
+        -   Set the `method` option to `"spearman"`.
+        -   **You MUST populate the `ordinal_mapping` parameter.** This parameter must be a JSON object where the key is the column name, and the value is another object mapping the string categories to their correct numerical order, starting from 1.
+    -   **If the categorical variable is NOMINAL** (e.g., ['USA', 'Canada', 'Mexico']):
+        -   Choose the `"ANOVA"` test. The correct approach is to compare the means of the numerical variable across the different categories, not to calculate a correlation.
+        -   Set `ordinal_mapping` to `null`.
 
-3.  **Extract All Test Parameters:** Based on the user's prompt and the data context, fill in the necessary fields in the `test_parameters` object.
+3.  **Formulate Hypotheses & Rationale:** Generate clear Null (H₀) and Alternative (H₁) hypotheses in plain English and a brief, concise rationale for your test choice.
+
+4.  **Extract All Test Parameters:** Based on the user's prompt and the data context, fill in the necessary fields in the `test_parameters` object.
     -   `dependent_variable`: The column representing the measured outcome.
     -   `independent_variables`: A list of columns representing the groups or predictors.
     -   `tail`: The test tail.
     -   `population_mean`: The target value for a one-sample test.
-    -   `population_std`: The known standard deviation for a Z-test.
-    -   `sample_groups`: A list of specific values to filter from a categorical column.
-    -   `expected_values`: A list of expected frequencies or proportions.
-    -   `options`: A nested dictionary for test configurations like `equal_variance` or `paired`.
+    -   `options`: A nested dictionary for test configurations.
+    -   `ordinal_mapping`: The mapping for ordinal variables. Set to `null` if not applicable.
     
-4.  **Interpret P-Values:**
-    -   **For Normality (Shapiro):** If a numerical column has a `shapiro_pvalue` less than 0.05, assume the data is not normally distributed.
-    -   **For Equal Variance (Levene):** If the data context includes a `levene_pvalue`, check its value. If it is less than 0.05, assume unequal variances and set the `equal_variance` option to `false`. Otherwise, set it to `true`.
+5.  **Interpret P-Values from Data Context:**
+    -   **For Normality:** If a numerical column's `_normality_test_pvalue` is less than 0.05, assume the data is not normally distributed and prefer a non-parametric test (e.g., Mann-Whitney U over t-test).
+    -   **For Equal Variance (Levene):** If the `_levene_pvalue` is less than 0.05, assume unequal variances and set the `equal_variance` option to `false`. Otherwise, set it to `true`.
 
 **Output Format (JSON only, no extra text):**
 {{
@@ -99,6 +186,9 @@ You MUST copy the test name verbatim from the list above; do not rephrase, add p
     "population_std": <value | null>,
     "sample_groups": ["<group1>", "<group2>", "..."],
     "expected_values": <[value1, value2, ...] | null>,
+    "ordinal_mapping": {{
+        "<column_name>": {{ "<category1>": 1, "<category2>": 2, ... }}
+     }} | null,
     "options": {{
       "equal_variance": <true | false | null>,
       "paired": <true | false | null>,
@@ -113,7 +203,6 @@ IMPORTANT: the value you write for "test_name" must be **identical** to one of t
 **Key Guidelines:**
 -   Ensure all fields are filled accurately based on the prompt and data context.
 -   If a parameter is not relevant, set its value to `null`.
--   The `pandas_query` must be a valid, single-line Python string.
 -   Your entire response must be a single, valid JSON object.
 """
 
@@ -127,38 +216,71 @@ IMPORTANT: the value you write for "test_name" must be **identical** to one of t
 # =================================================================
 def summary() -> str:
     return """
-You are a helpful AI assistant that summarizes statistical test results in plain, natural language. Your goal is to explain the findings to a non-technical audience.
+You are a helpful AI assistant that summarizes statistical test results in plain, natural language for a general audience.
 
-Instructions:
+Your task is to generate a single-paragraph explanation based on the user's hypothesis question, the statistical test performed, and the results obtained. Make the explanation clear, engaging, and understandable without statistical jargon.
 
-Based on the following information, provide a concise, single-paragraph summary of the hypothesis test results.
+Inputs:
 
-Input Data:
+- User's Hypothesis Question: "{user_prompt}"
 
-Hypotheses: H₀: "{H0_statement}" and H₁: "{H1_statement}"
+- Test Details:
+  - Test Name: "{test_name}"
+  - Columns Analyzed: {columns}
+  - Hypotheses:
+    - H₀: "{H0_statement}"
+    - H₁: "{H1_statement}"
+  - Reasoning: "{reasoning}"
 
-Test Performed: "{test_name}"
+- Test Results(Read the JSON):
+  - {test_results}
 
-P-value: {p_value}
+Instructions for interpreting significance:
 
-Test Statistic: {test_statistic}
+1. Use a significance threshold based on the context:
+   - If the user's question is related to critical fields like medicine, healthcare, safety, or high-stakes decisions, use 0.01 as the significance level.
+   - Otherwise, use 0.05 as the significance level for general scenarios.
 
-Key Results: {key_results_dict}
+2. Compare the p-value against the chosen significance level:
+   - If p-value ≤ threshold, state that the result is statistically significant and the hypothesis is accepted.
+   - If p-value > threshold, state that the result is not statistically significant and the hypothesis is rejected.
 
-Summary Guidelines:
+3. Clearly explain the conclusion:
+   - State whether the findings support or do not support the hypothesis.
+   - Use language like "this suggests that..." or "we cannot find enough evidence to conclude that..." instead of mentioning "null hypothesis" or "alternative hypothesis."
 
-Start with the conclusion: State whether the result is statistically significant. The result is significant if the p-value is less than or equal to 0.05.
+4. Explain in simple terms what the results mean for the user's question, based on the test performed and the variables involved.
 
-Explain the meaning: In simple terms, explain what the result means in the context of the original hypotheses (e.g., "This means we can conclude that..." or "This means we cannot find enough evidence to conclude that...").
+5. Incorporate relevant context from the reasoning, such as why this test was chosen or what assumptions were made.
 
-Use plain language: Avoid statistical jargon like "null hypothesis," "alternative hypothesis," "t-statistic," or "p-value" in the final summary.
+6. Present the p-value and the significance level in an easy-to-understand way, such as:
+   - "The threshold for considering this result significant was 0.05, and since the p-value is 0.25, it means we do not have enough evidence..."
+   - "Because the p-value is less than 0.01, this result strongly supports the hypothesis..."
 
 Output Format:
 
-A single, cohesive paragraph of text. Do not include any JSON, bullet points, or extra conversation.
+Provide the information as clearly labeled sections, like this:
+
+**Hypothesis Question**: [user’s question]  
+**H₀ statement**: [H₀ statement]  
+**H₁ statement**: [H₁ statement]  
+**P-value**: [p-value]  
+**Significance threshold**: [threshold]  
+
+**Conclusion**: 
+[plain language conclusion about the hypothesis]
+
+Do not present it as one long paragraph. Keep each section distinct and concise.
 """
 
 
 
 
-
+# =============================================================
+# This will solely have chat having the test and data_context
+# user's previous chat context to reply contextually 
+# =============================================================
+def chat() -> str:
+    return """
+You are 
+"""
