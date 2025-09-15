@@ -7,13 +7,14 @@ from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 
-from modules.agent_instruct import classify_and_structure, guard_prompt
+from modules.agent_instruct import classify_and_structure, guard_prompt, summary, chat
 from utils.data_reader import prepare_data_context
 from utils.jsonfy import give_json
 from modules.hypothesis_test import dispatch_test
 
 from typing import Dict, Any
 
+from utils.render_chat_history import render_chat
 
 
 load_dotenv()
@@ -47,6 +48,15 @@ check_chain = check_prompt | gemini_llm
 reading_prompt = ChatPromptTemplate.from_template(classify_and_structure())
 reading_chain = reading_prompt | gemini_llm
 
+# summarize in natural language
+summary_prompt = ChatPromptTemplate.from_template(summary())
+summary_chain = summary_prompt | gemini_llm
+
+
+# chat with the user about the test
+chat_prompt = ChatPromptTemplate.from_template(chat())
+chat_chain = chat_prompt | gemini_llm
+
 # ============================================================
 
 
@@ -67,13 +77,15 @@ CANONICAL = {
 }
 
 
+
+
 # handles all the main task if user_question is inferential hypothesis  
 def handle(user_prompt : str, df : pd.DataFrame, columns : list[str]):
     # print(user_prompt)
     # print(df.head()) 
 
     data_context_json = prepare_data_context(df, columns)  # using data_reader to get the whole context of the data for the LLM
-    
+   
     res = ''
 
     # we will pass this JSON to simple model to infer from this and give us structured variables by classifying the test and parameters 
@@ -83,17 +95,17 @@ def handle(user_prompt : str, df : pd.DataFrame, columns : list[str]):
     
     llm_response = give_json(res)                     # we converting the received json like string to actual json format
 
-    print(f"\n\nLLM RESPONSE(agent_layer)----\n {llm_response}")
+    print(f"\n\nLLM RESPONSE(agent_layer)----\n {data_context_json} \n {llm_response}")
 
     if llm_response.get("test_name") not in CANONICAL:
-        return {'Error:' : f"LLM Response doesn't have the correct Test Name : {llm_response.get("test_name")}"}
+        return None, {'Error:' : f"LLM Response doesn't have the correct Test Name : {llm_response.get("test_name")}"}, None
 
     else:
         response, test_results = dispatch_test(llm_response, df)     # now we got the test names, and columns, test params, we need to perform Hypothesis Testing on this
         
         print(f"\n\n------- RESPONSE & TEST RESULT -------\n{response}\n{test_results}")
 
-        return response, test_results
+        return data_context_json, response, test_results
     
 
 # checks if the user's question is inferential or descriptive(we wont need hypothesis for that)
@@ -111,10 +123,32 @@ def check_user_question(user_prompt: str, df: pd.DataFrame):
 
 
 # A summarizer layer to summarize the statistical jargons in human launguage for non techincal users 
-def summarize(user_prompt: str, df: pd.DataFrame, llm_response: Dict[str, Any], test_results: Dict[str, Any]):
-    TODO: f"we will invoke a LLM layer to do the summarization of data, test stats to user"
+def summarize(user_prompt: str, llm_response: Dict[str, Any], test_results: Dict[str, Any]):
+
+    for chunks in summary_chain.stream({
+        'user_prompt': user_prompt, 
+        'test_name': llm_response.get('test_name', None), 
+        'columns': llm_response.get('columns', []),
+        'H0_statement': llm_response['hypotheses'].get('H0', None), 
+        'H1_statement': llm_response['hypotheses'].get('H1', None),
+        'reasoning': llm_response.get('reasoning', None),
+        'test_results': test_results}):
+        print(chunks.content, end='', flush=True)
+        yield chunks.content
 
 
+# Final layer to let user talk about the test and query his doubts
+def chat(data_context_json: Dict[str, Any], llm_response: Dict[str, Any], test_results: Dict[str, Any], user_chat: str, chat_context: list):
+    
+    chat_history = render_chat(chat_context)
 
-def chat():
-    pass
+    for chunks in chat_chain.stream({
+        'data_context': data_context_json,
+        'llm_response': llm_response,
+        'test_results': test_results,
+        'user_chat': user_chat,
+        'chat_history': chat_history
+
+    }):
+        print(chunks.content, end='', flush=True)
+        yield chunks.content
