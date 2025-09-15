@@ -308,19 +308,77 @@ def run_linear_regression(df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str,
         "f_pvalue": float(model.f_pvalue),
     }
 
+# def run_correlation(df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
+#     x_var, y_var = params["columns"][0], params["columns"][1]
+#     print(f"x_var: {x_var}")
+#     method = params["test_parameters"]["options"].get("method", "pearson").lower()
+#     x_clean = _ensure_numeric(df[x_var], "run_correlation", x_var)
+#     y_clean = _ensure_numeric(df[y_var], "run_correlation", y_var)
+#     if method == "pearson":
+#         corr, p_val = stats.pearsonr(x_clean.dropna(), y_clean.dropna())
+#     elif method == "spearman":
+#         corr, p_val = stats.spearmanr(x_clean.dropna(), y_clean.dropna())
+#     else:
+#         raise ValueError("Invalid correlation method specified.")
+#     return {"correlation_coefficient": float(corr), "p_value": float(p_val)}
+
 def run_correlation(df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Runs a Pearson or Spearman correlation test.
+    If an ordinal_mapping is provided in the parameters, it will be used to
+    encode categorical data into numeric ranks before running the test.
+    """
     x_var, y_var = params["columns"][0], params["columns"][1]
-    print(f"x_var: {x_var}")
     method = params["test_parameters"]["options"].get("method", "pearson").lower()
-    x_clean = _ensure_numeric(df[x_var], "run_correlation", x_var)
-    y_clean = _ensure_numeric(df[y_var], "run_correlation", y_var)
+    
+    # Safely get the ordinal mapping from the parameters
+    ordinal_mapping = params["test_parameters"].get("ordinal_mapping")
+
+    # Start with copies of the original data series
+    x_series = df[x_var].copy()
+    y_series = df[y_var].copy()
+
+    # --- NEW LOGIC to apply ordinal encoding ---
+    if ordinal_mapping:
+        print(f"Ordinal mapping found: {ordinal_mapping}. Applying to data.")
+        # The mapping is a dict like {'column_name': {'category': 1, ...}}
+        for col_to_map, mapping_dict in ordinal_mapping.items():
+            if col_to_map == x_var:
+                print(f"Mapping column '{x_var}'")
+                x_series = x_series.map(mapping_dict)
+            elif col_to_map == y_var:
+                print(f"Mapping column '{y_var}'")
+                y_series = y_series.map(mapping_dict)
+    
+    # Now, with ordinal data encoded, we can proceed to ensure everything is numeric
+    # This will catch any remaining non-numeric issues
+    x_clean = _ensure_numeric(x_series, "run_correlation", x_var)
+    y_clean = _ensure_numeric(y_series, "run_correlation", y_var)
+
+    # --- IMPROVED LOGIC for handling missing values ---
+    # Combine into a single DataFrame to ensure rows are aligned, then drop NaNs
+    combined_df = pd.DataFrame({'x': x_clean, 'y': y_clean}).dropna()
+
+    # Check if there's enough data left to perform a correlation
+    if len(combined_df) < 2:
+        return {
+            "error": "Not enough overlapping non-null data points to calculate a correlation."
+        }
+        
+    # Select the method and run the test on the cleaned, aligned data
     if method == "pearson":
-        corr, p_val = stats.pearsonr(x_clean.dropna(), y_clean.dropna())
+        corr, p_val = stats.pearsonr(combined_df['x'], combined_df['y'])
     elif method == "spearman":
-        corr, p_val = stats.spearmanr(x_clean.dropna(), y_clean.dropna())
+        corr, p_val = stats.spearmanr(combined_df['x'], combined_df['y'])
     else:
-        raise ValueError("Invalid correlation method specified.")
-    return {"correlation_coefficient": float(corr), "p_value": float(p_val)}
+        raise ValueError(f"Invalid correlation method specified: '{method}'")
+
+    return {
+        "correlation_coefficient": float(corr),
+        "p_value": float(p_val),
+        # "n_observations": len(combined_df) # It's good practice to return the sample size
+    }
+
 
 def run_mann_whitney_u(groups: Tuple[pd.Series, pd.Series], params: Dict[str, Any]) -> Dict[str, Any]:
     tail = params["tail"]
