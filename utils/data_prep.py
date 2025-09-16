@@ -272,14 +272,33 @@ def run_one_sample_ttest(df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, 
     return {"t_statistic": float(t_stat), "p_value": float(p_val)}
 
 def run_two_sample_ttest(groups: Tuple[pd.Series, pd.Series], params: Dict[str, Any]) -> Dict[str, Any]:
-    tail = params["tail"]
+    tail = ''
+
+    if params["tail"] == 'two-tailed':
+        tail = 'two-sided'
+    elif params["tail"] == 'left-tailed':
+        tail = 'less'
+    elif params["tail"] == 'right-tailed':
+        tail = 'greater'
+
     equal_var = params["options"].get("equal_variance", True)
     t_stat, p_val = stats.ttest_ind(groups[0], groups[1], equal_var=equal_var, alternative=tail)
-    return {"t_statistic": float(t_stat), "p_value": float(p_val)}
+    n1 = len(groups[0])
+    n2 = len(groups[1])
+    df_val = n1 + n2 - 2
+    return {"t_statistic": float(t_stat), "p_value": float(p_val), "degrees_of_freedom": df_val}
 
 def run_paired_ttest(df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
     x_var, y_var = params["columns"][0], params["columns"][1]
-    tail = params['test_parameters']["tail"]
+
+    tail = ''
+    if params.get('test_parameters', {}).get('tail', None) == 'two-tailed':
+        tail = 'two-sided'
+    elif params.get('test_parameters', {}).get('tail', None) == 'left-tailed':
+        tail = 'less'
+    elif params.get('test_parameters', {}).get('tail', None) == 'right-tailed':
+        tail = 'greater'
+    
     x_clean = _ensure_numeric(df[x_var], "run_paired_ttest", x_var)
     y_clean = _ensure_numeric(df[y_var], "run_paired_ttest", y_var)
     t_stat, p_val = stats.ttest_rel(x_clean.dropna(), y_clean.dropna(), alternative=tail)
@@ -381,7 +400,13 @@ def run_correlation(df: pd.DataFrame, params: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def run_mann_whitney_u(groups: Tuple[pd.Series, pd.Series], params: Dict[str, Any]) -> Dict[str, Any]:
-    tail = params["tail"]
+    tail = ''
+    if params["tail"] == 'two-tailed':
+        tail = 'two-sided'
+    elif params["tail"] == 'left-tailed':
+        tail = 'less'
+    elif params["tail"] == 'right-tailed':
+        tail = 'greater'
     u_stat, p_val = stats.mannwhitneyu(groups[0], groups[1], alternative=tail)
     return {"u_statistic": float(u_stat), "p_value": float(p_val)}
 
