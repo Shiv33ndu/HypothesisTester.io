@@ -50,6 +50,9 @@ if 'df' not in st.session_state:
 if 'hypotheses_quest' not in st.session_state:
     st.session_state.hypotheses_quest = None
 
+if 'plotContext' not in st.session_state:
+    st.session_state.plotContext = None
+
 st.session_state.initialized = True
 
 # ------------------------------------
@@ -97,6 +100,7 @@ with st.sidebar:
                 "Enter your hypothesis in plain English,. Hint: using column names in parenthesis() will give better results",
                 placeholder="Is benefit score(benefits_score) negatively correlated with salary(salary_usd)?"
                 )
+            st.session_state.hypotheses_quest = user_prompt
 
             # Run Hypothesis
             if st.button("🔎 Run Hypothesis Test"):
@@ -188,15 +192,15 @@ with st.sidebar:
                     
                         info_placeholder.empty()          # remove old banner
 
-                        if check_question["decision"] == "descriptive":
+                        if check_question.get("decision", "descriptive") == "descriptive":
                             with info_placeholder.container():
                                 st.warning("⚠️  Not a hypothesis-testing question.")
                                 st.markdown(
                                     f"*Descriptive answer:*  \n"
-                                    f"**{check_question['answer']}**"
+                                    f"**{check_question.get('answer', None)}**"
                                 )
                                 with st.expander("Why no test was run"):
-                                    st.write(check_question["reason"])
+                                    st.write(check_question("reason", None))
 
                         else:
                             data_context_json, response, test_results = handle(user_prompt, df, matched_cols)  
@@ -213,53 +217,56 @@ with st.sidebar:
     # TAB 2: Chat (only after hypothesis ran)
     # -------------------------
     with tab2:
-        if st.session_state.get("ran_hypothesis", False):
-            # Init chat history
-            if "messages" not in st.session_state:
-                st.session_state.messages = []
+        # TODO: Remove the current code, and use older one from GitHub
+        # TODO: Add the tate_management for plot, not to rerun everytime the chat is being entered
+        pass
+        # if st.session_state.get("ran_hypothesis", False):
+        #     # Init chat history
+        #     if "messages" not in st.session_state:
+        #         st.session_state.messages = []
 
-            st.subheader("💬 Chat with Hypothesis AI")
+        #     st.subheader("💬 Chat with Hypothesis AI")
 
-            # Display chat history
-            for message in st.session_state.messages:
-                if isinstance(message, HumanMessage):
-                    with st.chat_message("user"):
-                        st.markdown(f"<pre style='font-family: Pacifico, cursive; font-size:18px; white-space:pre-wrap;'>{message.content}</pre>",
-        unsafe_allow_html=True)
+        #     # Display chat history
+        #     for message in st.session_state.messages:
+        #         if isinstance(message, HumanMessage):
+        #             with st.chat_message("user"):
+        #                 st.markdown(f"<pre style='font-family: Pacifico, cursive; font-size:18px; white-space:pre-wrap;'>{message.content}</pre>",
+        # unsafe_allow_html=True)
                         
-                elif isinstance(message, AIMessage):
-                    with st.chat_message("assistant"):
-                        st.markdown(message.content)
+        #         elif isinstance(message, AIMessage):
+        #             with st.chat_message("assistant"):
+        #                 st.markdown(message.content)
 
-            # Chat input
-            user_input = st.chat_input("Type your message:", key="chat_input")
+        #     # Chat input
+        #     user_input = st.chat_input("Type your message:", key="chat_input")
 
-            # if user submits an input
-            if user_input:
-                # add the input message on the screen and store into HumanMessage
-                with st.chat_message("user"):
-                    st.markdown(f"```\n{user_input}\n```")
+        #     # if user submits an input
+        #     if user_input:
+        #         # add the input message on the screen and store into HumanMessage
+        #         with st.chat_message("user"):
+        #             st.markdown(f"```\n{user_input}\n```")
                 
-                st.session_state.messages.append(HumanMessage(content=user_input))
+        #         st.session_state.messages.append(HumanMessage(content=user_input))
 
-                with st.chat_message("assistant"):
-                    placeholder = st.empty()
-                    reply = ""
+        #         with st.chat_message("assistant"):
+        #             placeholder = st.empty()
+        #             reply = ""
 
-                    # pass the session-specific chat history to the chat function
-                    for chunk in chat(user_input, st.session_state.messages):
-                        reply += chunk
-                        placeholder.markdown(reply + "▌")
-                    placeholder.markdown(reply)
+        #             # pass the session-specific chat history to the chat function
+        #             for chunk in chat(user_input, st.session_state.messages):
+        #                 reply += chunk
+        #                 placeholder.markdown(reply + "▌")
+        #             placeholder.markdown(reply)
 
-                    # update the session state with the assistant's message
-                    st.session_state.messages.append(AIMessage(content=reply))    
-        else:
-            st.info("⚠️ Run a hypothesis test first to enable chat.")
+        #             # update the session state with the assistant's message
+        #             st.session_state.messages.append(AIMessage(content=reply))    
+        # else:
+        #     st.info("⚠️ Run a hypothesis test first to enable chat.")
 
 
 # =========================================================================
-# NEW AND IMPROVED PLOTTING FUNCTIONS
+# PLOTTING FUNCTIONS
 # =========================================================================
 
 def plot_ttest_significance(test_stat, p_value, df_val, tail_type, title, alpha=0.05):
@@ -464,26 +471,156 @@ else:
     params = results_response.get('test_parameters', {})
     test_results = st.session_state.results['test_results']
 
+    # st.write("#### Data Visualization")
+    
+    # # Plotting logic based on test type
+    # if test_name in ["Two-Sample Independent t-test", "One-Sample t-test", "Paired Sample t-test"]:
+    #     t_statistic = test_results.get('t_statistic')
+    #     p_value = test_results.get('p_value')
+    #     tail = ''
+    #     if params["tail"] == 'two-tailed':
+    #         tail = 'two-sided'
+    #     elif params["tail"] == 'left-tailed':
+    #         tail = 'less'
+    #     elif params["tail"] == 'right-tailed':
+    #         tail = 'greater'
+
+    #     df_val = test_results.get('degrees_of_freedom')
+        
+    #     if all([t_statistic is not None, p_value is not None, tail, df_val is not None]):
+    #         fig = plot_ttest_significance(
+    #             test_stat=t_statistic, 
+    #             p_value=p_value, 
+    #             df_val=df_val,
+    #             tail_type=tail, 
+    #             title=f'Significance of {test_name}'
+    #         )
+    #         st.plotly_chart(fig, use_container_width=True)
+    #     else:
+    #         st.warning("Could not generate t-test significance plot due to missing parameters (t-statistic, p-value, tail, or degrees of freedom).")
+    
+    # elif test_name in ["ANOVA", "Kruskal-Wallis H Test", "Mann-Whitney U Test"]:
+    #     dependent_var = params.get('dependent_variable')
+    #     independent_var = params.get('independent_variables', [None])[0]
+    #     if dependent_var and independent_var:
+    #         fig = plot_group_comparison_violin(
+    #             df, dependent_var, independent_var, 
+    #             f"Distribution of {dependent_var} by {independent_var}"
+    #         )
+    #         st.plotly_chart(fig, use_container_width=True)
+    #     else:
+    #         st.warning("Could not generate plot due to missing parameters.")
+    
+  
+
+    # elif test_name in ["Correlation Test (Pearson/Spearman)", "Linear Regression Analysis"]:
+    #         params = results_response.get('test_parameters', {})
+    #         # Check if an ordinal mapping was used in the test
+    #         ordinal_mapping = params.get("ordinal_mapping")
+    #         cols = results_response.get('columns', [])
+
+    #         if not cols or len(cols) < 2:
+    #             st.warning("Could not generate plot due to missing column parameters.")
+            
+    #         # --- NEW DECISION LOGIC ---
+    #         elif ordinal_mapping:
+    #             # This was an Ordinal vs. Numeric Spearman correlation. Use a box plot.
+    #             st.write("#### Ordinal vs. Numeric Relationship")
+                
+    #             # Identify which column is ordinal and which is numeric
+    #             ordinal_var = list(ordinal_mapping.keys())[0]
+    #             numeric_var = [col for col in cols if col != ordinal_var][0]
+    #             mapping_dict = ordinal_mapping[ordinal_var]
+
+    #             # Call the new box plot function
+    #             fig = plot_ordinal_vs_numeric_boxplot(
+    #                 df,
+    #                 numeric_var=numeric_var,
+    #                 ordinal_var=ordinal_var,
+    #                 mapping=mapping_dict,
+    #                 title=f"Distribution of {numeric_var} across {ordinal_var} Levels"
+    #             )
+    #             st.plotly_chart(fig, use_container_width=True)
+
+    #         else:
+    #             # This is a standard Numeric vs. Numeric correlation. Use a scatter plot.
+    #             st.write("#### Numeric vs. Numeric Relationship")
+    #             x_var, y_var = cols[0], cols[1]
+                
+    #             # Check if columns are numeric before plotting
+    #             if pd.api.types.is_numeric_dtype(df[x_var]) and pd.api.types.is_numeric_dtype(df[y_var]):
+    #                 fig = plot_correlation_scatter(
+    #                     df, x_var, y_var,
+    #                     f"Relationship between {x_var} and {y_var}"
+    #                 )
+    #                 st.plotly_chart(fig, use_container_width=True)
+    #             else:
+    #                 st.warning(f"Could not generate scatter plot. Both '{x_var}' and '{y_var}' must be numeric.")
+
+    # elif test_name in ["Chi-Square Test of Independence", "Fisher's Exact Test"]:
+    #     # Chi-square usually involves two categorical variables
+    #     vars_to_plot = params.get('independent_variables', [])
+    #     if len(vars_to_plot) >= 2:
+    #         col1, col2 = vars_to_plot[0], vars_to_plot[1]
+    #         fig = plot_contingency_heatmap(
+    #             df, col1, col2,
+    #             f"Contingency Heatmap of {col1} and {col2}"
+    #         )
+    #         st.plotly_chart(fig, use_container_width=True)
+    #     else:
+    #         st.warning("Could not generate plot. Chi-Square test requires at least two categorical variables.")
+    
+    # else: # Default plot for single-variable tests like Shapiro-Wilk
+    #     dependent_var = params.get('dependent_variable')
+    #     if dependent_var:
+    #         fig = plot_distribution_histogram(df, dependent_var, f"Distribution of {dependent_var}")
+    #         st.plotly_chart(fig, use_container_width=True)
+    #     else:
+    #         st.warning("Could not generate a suitable plot for this test.")
+
+    plot_context = {}
+    
     st.write("#### Data Visualization")
     
     # Plotting logic based on test type
-    if test_name in ["Two-Sample Independent t-test", "One-Sample t-test", "Paired Sample t-test"]:
+    if test_name in ["Two-Sample Independent t-test", "One-Sample t-test", "Paired t-test"]:
         t_statistic = test_results.get('t_statistic')
         p_value = test_results.get('p_value')
-        tail = params.get('tail')
+        
+        tail = ''
+
+        if params.get('tail', 'not applicable') == 'two-tailed':
+            tail = 'two-sided'
+        elif params.get('tail', 'not applicable') == 'left-tailed':
+            tail = 'less'
+        elif params.get('tail', 'not applicable') == 'right-tailed':
+            tail = 'greater'
+
         df_val = test_results.get('degrees_of_freedom')
         
         if all([t_statistic is not None, p_value is not None, tail, df_val is not None]):
             fig = plot_ttest_significance(
-                test_stat=t_statistic, 
-                p_value=p_value, 
-                df_val=df_val,
-                tail_type=tail, 
-                title=f'Significance of {test_name}'
+                test_stat=t_statistic, p_value=p_value, df_val=df_val,
+                tail_type=tail, title=f'Significance of {test_name}'
             )
             st.plotly_chart(fig, use_container_width=True)
+            
+            # CAPTURE PLOT CONTEXT for t-test
+            is_significant = p_value <= 0.05
+            plot_context = {
+                "plot_type": "T-distribution Significance Plot",
+                "description": "This plot shows the probability density of the t-distribution for this test. It visualizes whether the result is statistically significant.",
+                "variables": {"x_axis": "T-Statistic Value", "y_axis": "Probability Density"},
+                "key_observations": {
+                    "test_statistic_value": round(t_statistic, 3),
+                    "p_value": round(p_value, 4),
+                    "degrees_of_freedom": int(df_val),
+                    "conclusion": "The test statistic falls into the '{}' region.".format("rejection (red)" if is_significant else "fail-to-reject (green)"),
+                    "is_significant": is_significant
+                }
+            }
         else:
-            st.warning("Could not generate t-test significance plot due to missing parameters (t-statistic, p-value, tail, or degrees of freedom).")
+            st.warning("Could not generate t-test significance plot due to missing parameters.")
     
     elif test_name in ["ANOVA", "Kruskal-Wallis H Test", "Mann-Whitney U Test"]:
         dependent_var = params.get('dependent_variable')
@@ -494,87 +631,102 @@ else:
                 f"Distribution of {dependent_var} by {independent_var}"
             )
             st.plotly_chart(fig, use_container_width=True)
+
+            # CAPTURE PLOT CONTEXT for ANOVA/group comparison
+            group_stats = df.groupby(independent_var)[dependent_var].agg(['mean', 'median', 'std']).round(2).to_dict('index')
+            plot_context = {
+                "plot_type": "Violin Plot",
+                "description": "This plot displays the distribution of a numeric variable across different categories. The shape of the violin shows the density of data points.",
+                "variables": {"x_axis": f"Categories of '{independent_var}'", "y_axis": f"Values of '{dependent_var}'"},
+                "key_observations": {
+                    "groups": list(group_stats.keys()),
+                    "group_summary_statistics": group_stats,
+                    "visual_trend": "Observe the differences in the median (white dot) and spread (violin shape) for each group."
+                }
+            }
         else:
             st.warning("Could not generate plot due to missing parameters.")
-    
-  
 
     elif test_name in ["Correlation Test (Pearson/Spearman)", "Linear Regression Analysis"]:
-            params = results_response.get('test_parameters', {})
-            # Check if an ordinal mapping was used in the test
-            ordinal_mapping = params.get("ordinal_mapping")
-            cols = results_response.get('columns', [])
+        ordinal_mapping = params.get("ordinal_mapping")
+        cols = results_response.get('columns', [])
 
-            if not cols or len(cols) < 2:
-                st.warning("Could not generate plot due to missing column parameters.")
-            
-            # --- NEW DECISION LOGIC ---
-            elif ordinal_mapping:
-                # This was an Ordinal vs. Numeric Spearman correlation. Use a box plot.
-                st.write("#### Ordinal vs. Numeric Relationship")
-                
-                # Identify which column is ordinal and which is numeric
-                ordinal_var = list(ordinal_mapping.keys())[0]
-                numeric_var = [col for col in cols if col != ordinal_var][0]
-                mapping_dict = ordinal_mapping[ordinal_var]
+        if not cols or len(cols) < 2:
+            st.warning("Could not generate plot due to missing column parameters.")
+        
+        elif ordinal_mapping:
+            # Ordinal vs. Numeric case
+            ordinal_var = list(ordinal_mapping.keys())[0]
+            numeric_var = [col for col in cols if col != ordinal_var][0]
+            mapping_dict = ordinal_mapping[ordinal_var]
+            fig = plot_ordinal_vs_numeric_boxplot(
+                df, numeric_var=numeric_var, ordinal_var=ordinal_var,
+                mapping=mapping_dict, title=f"Distribution of {numeric_var} across {ordinal_var} Levels"
+            )
+            st.plotly_chart(fig, use_container_width=True)
 
-                # Call the new box plot function
-                fig = plot_ordinal_vs_numeric_boxplot(
-                    df,
-                    numeric_var=numeric_var,
-                    ordinal_var=ordinal_var,
-                    mapping=mapping_dict,
-                    title=f"Distribution of {numeric_var} across {ordinal_var} Levels"
-                )
+            # CAPTURE PLOT CONTEXT for Ordinal vs. Numeric Box Plot
+            group_medians = df.groupby(ordinal_var)[numeric_var].median().round(2).to_dict()
+            sorted_categories = sorted(mapping_dict, key=mapping_dict.get)
+            plot_context = {
+                "plot_type": "Ordered Box Plot",
+                "description": "This plot shows the distribution of a numeric variable for each category of an ordered variable. It's used to spot trends.",
+                "variables": {"x_axis": f"Ordered categories of '{ordinal_var}'", "y_axis": f"Values of '{numeric_var}'"},
+                "key_observations": {
+                    "ordered_categories": sorted_categories,
+                    "median_by_category": {cat: group_medians.get(cat) for cat in sorted_categories},
+                    "correlation_coefficient": round(test_results.get('correlation_coefficient', 0), 3),
+                    "visual_trend": "Observe if the median line inside the boxes trends upwards or downwards as you move across the ordered categories from left to right."
+                }
+            }
+
+        else:
+            # Numeric vs. Numeric case
+            x_var, y_var = cols[0], cols[1]
+            if pd.api.types.is_numeric_dtype(df[x_var]) and pd.api.types.is_numeric_dtype(df[y_var]):
+                fig = plot_correlation_scatter(df, x_var, y_var, f"Relationship between {x_var} and {y_var}")
                 st.plotly_chart(fig, use_container_width=True)
 
+                # CAPTURE PLOT CONTEXT for Scatter Plot
+                plot_context = {
+                    "plot_type": "Scatter Plot with Trendline",
+                    "description": "This plot shows the relationship between two numeric variables. Each dot is a data point.",
+                    "variables": {"x_axis": x_var, "y_axis": y_var},
+                    "key_observations": {
+                        "correlation_coefficient": round(test_results.get('correlation_coefficient', 0), 3),
+                        "p_value": round(test_results.get('p_value', 1), 4),
+                        "visual_trend": "Observe the direction of the points and the slope of the central trendline. An upward slope suggests a positive correlation, while a downward slope suggests a negative one."
+                    }
+                }
             else:
-                # This is a standard Numeric vs. Numeric correlation. Use a scatter plot.
-                st.write("#### Numeric vs. Numeric Relationship")
-                x_var, y_var = cols[0], cols[1]
-                
-                # Check if columns are numeric before plotting
-                if pd.api.types.is_numeric_dtype(df[x_var]) and pd.api.types.is_numeric_dtype(df[y_var]):
-                    fig = plot_correlation_scatter(
-                        df, x_var, y_var,
-                        f"Relationship between {x_var} and {y_var}"
-                    )
-                    st.plotly_chart(fig, use_container_width=True)
-                else:
-                    st.warning(f"Could not generate scatter plot. Both '{x_var}' and '{y_var}' must be numeric.")
+                st.warning(f"Could not generate scatter plot. Both '{x_var}' and '{y_var}' must be numeric.")
 
     elif test_name in ["Chi-Square Test of Independence", "Fisher's Exact Test"]:
-        # Chi-square usually involves two categorical variables
         vars_to_plot = params.get('independent_variables', [])
         if len(vars_to_plot) >= 2:
             col1, col2 = vars_to_plot[0], vars_to_plot[1]
-            fig = plot_contingency_heatmap(
-                df, col1, col2,
-                f"Contingency Heatmap of {col1} and {col2}"
-            )
+            fig = plot_contingency_heatmap(df, col1, col2, f"Contingency Heatmap of {col1} and {col2}")
             st.plotly_chart(fig, use_container_width=True)
+
+            # CAPTURE PLOT CONTEXT for Heatmap
+            contingency_table = pd.crosstab(df[col1], df[col2])
+            plot_context = {
+                "plot_type": "Contingency Heatmap",
+                "description": "This plot visualizes the frequency of co-occurrence between two categorical variables. The color of each cell indicates the count.",
+                "variables": {"x_axis": col2, "y_axis": col1},
+                "key_observations": {
+                    "contingency_table": contingency_table.to_dict(),
+                    "visual_trend": "Look for cells or rows/columns that are significantly darker or lighter than others. This suggests a pattern or association between the variables."
+                }
+            }
         else:
             st.warning("Could not generate plot. Chi-Square test requires at least two categorical variables.")
     
-    else: # Default plot for single-variable tests like Shapiro-Wilk
-        dependent_var = params.get('dependent_variable')
-        if dependent_var:
-            fig = plot_distribution_histogram(df, dependent_var, f"Distribution of {dependent_var}")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("Could not generate a suitable plot for this test.")
 
     # LLM Summary once the graph is plotted 
     
     st.write("#### Summary:")
-    # TODO: Replace with LLM-generated summary for better readability
-    # st.markdown(f"**Test Name:** `{results_response.get('test_name')}`")
-    # st.markdown(f"**Reasoning:** `{results_response.get('reasoning')}`")
-    # st.write("---")
-    # st.write("#### Raw Test Results")
-    # st.json(st.session_state.results['test_results'])
-    # st.write("#### Raw LLM Response")
-    # st.json(results_response)
+    
     user_hypothesis_question = st.session_state.hypotheses_quest
     llm_response = st.session_state.results['response']
     test_results = st.session_state.results['test_results']
@@ -583,7 +735,11 @@ else:
 
     res = ''
     
-    for chunks in summarize(user_hypothesis_question, llm_response, test_results):
+    for chunks in summarize(user_hypothesis_question, llm_response, test_results, plot_context):
         res += chunks
         summ_placeholder.markdown(res + "▌")
     summ_placeholder.markdown(res)    
+
+    st.write("If you want to dive deep into this test summary, head to chat tab in Sidebar to chat with the Hypotheses AI")
+
+    st.session_state.plotContext = plot_context
