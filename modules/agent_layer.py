@@ -6,6 +6,8 @@ import pandas as pd
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.exceptions import LangChainException
+from google.api_core.exceptions import ResourceExhausted
 
 from modules.agent_instruct import classify_and_structure, guard_prompt, summary, chat
 from utils.data_reader import prepare_data_context
@@ -89,9 +91,19 @@ def handle(user_prompt : str, df : pd.DataFrame, columns : list[str]):
     res = ''
 
     # we will pass this JSON to simple model to infer from this and give us structured variables by classifying the test and parameters 
-    for chunk in reading_chain.stream({'data_context_json': data_context_json, 'dataframe': df, 'user_prompt': user_prompt}):
+    try:
+        for chunk in reading_chain.stream({'data_context_json': data_context_json, 'dataframe': df, 'user_prompt': user_prompt}):
         # print(chunk.content, end='', flush=True)
-        res += chunk.content
+            res += chunk.content
+    except ResourceExhausted:
+        return None, {'Error:': f"You have exhausted the free Token. Please try again later!"}, None
+    
+    except Exception as e:
+        # Fallback in case you can't catch ResourceExhausted explicitly
+        if "ResourceExhausted" in str(e) or "quota" in str(e).lower():
+            return None, {"Error": "You have exceeded your quota. Please check your subscription and billing details."}, None
+        return None, {"Error": "An unexpected error occurred. Please try again later."}, None
+
     
     llm_response = give_json(res)                     # we converting the received json like string to actual json format
 
@@ -112,8 +124,19 @@ def handle(user_prompt : str, df : pd.DataFrame, columns : list[str]):
 def check_user_question(user_prompt: str, df: pd.DataFrame):
     res = ''
 
-    for chunks in check_chain.stream({'user_prompt' : user_prompt, 'data_context': df.head().to_string()}):
-        res += chunks.content
+    
+    try:
+        for chunks in check_chain.stream({'user_prompt' : user_prompt, 'data_context': df.head().to_string()}):
+            res += chunks.content
+
+    except ResourceExhausted:
+        return None, {'Error:': f"You have exhausted the free Token. Please try again later!"}, None
+    
+    except Exception as e:
+        # Fallback in case you can't catch ResourceExhausted explicitly
+        if "ResourceExhausted" in str(e) or "quota" in str(e).lower():
+            return None, {"Error": "You have exceeded your quota. Please check your subscription and billing details."}, None
+        return None, {"Error": "An unexpected error occurred. Please try again later."}, None
 
 
     checked_question_json = give_json(res)
@@ -123,32 +146,58 @@ def check_user_question(user_prompt: str, df: pd.DataFrame):
 
 
 # A summarizer layer to summarize the statistical jargons in human launguage for non techincal users 
-def summarize(user_prompt: str, llm_response: Dict[str, Any], test_results: Dict[str, Any]):
+def summarize(user_prompt: str, llm_response: Dict[str, Any], test_results: Dict[str, Any], plot_context: Dict[str, Any]):
 
-    for chunks in summary_chain.stream({
+    
+    
+    try:
+        for chunks in summary_chain.stream({
         'user_prompt': user_prompt, 
         'test_name': llm_response.get('test_name', None), 
         'columns': llm_response.get('columns', []),
-        'H0_statement': llm_response['hypotheses'].get('H0', None), 
-        'H1_statement': llm_response['hypotheses'].get('H1', None),
+        'H0_statement': llm_response.get('hypotheses', {}).get('H0', None), 
+        'H1_statement': llm_response.get('hypotheses', {}).get('H1', None),
         'reasoning': llm_response.get('reasoning', None),
-        'test_results': test_results}):
-        print(chunks.content, end='', flush=True)
-        yield chunks.content
+        'test_results': test_results,
+        'plot_context': plot_context}):
+            print(chunks.content, end='', flush=True)
+            yield chunks.content
+            
+    except ResourceExhausted:
+        return None, {'Error:': f"You have exhausted the free Token. Please try again later!"}, None
+    
+    except Exception as e:
+        # Fallback in case you can't catch ResourceExhausted explicitly
+        if "ResourceExhausted" in str(e) or "quota" in str(e).lower():
+            return None, {"Error": "You have exceeded your quota. Please check your subscription and billing details."}, None
+        return None, {"Error": "An unexpected error occurred. Please try again later."}, None
+
 
 
 # Final layer to let user talk about the test and query his doubts
-def chat(data_context_json: Dict[str, Any], llm_response: Dict[str, Any], test_results: Dict[str, Any], user_chat: str, chat_context: list):
+def chat(user_prompt: str, data_context_json: Dict[str, Any], llm_response: Dict[str, Any], test_results: Dict[str, Any], plot_context: Dict[str, Any], user_chat: str, chat_context: list):
     
     chat_history = render_chat(chat_context)
 
-    for chunks in chat_chain.stream({
+    try:
+        for chunks in chat_chain.stream({
+        'user_prompt': user_prompt,
         'data_context': data_context_json,
         'llm_response': llm_response,
         'test_results': test_results,
+        'plot_context': plot_context,
         'user_chat': user_chat,
         'chat_history': chat_history
 
     }):
-        print(chunks.content, end='', flush=True)
-        yield chunks.content
+            print(chunks.content, end='', flush=True)
+            yield chunks.content
+
+    except ResourceExhausted:
+        return None, {'Error:': f"You have exhausted the free Token. Please try again later!"}, None
+    
+    except Exception as e:
+        # Fallback in case you can't catch ResourceExhausted explicitly
+        if "ResourceExhausted" in str(e) or "quota" in str(e).lower():
+            return None, {"Error": "You have exceeded your quota. Please check your subscription and billing details."}, None
+        return None, {"Error": "An unexpected error occurred. Please try again later."}, None
