@@ -234,35 +234,7 @@ with st.sidebar:
         #                 st.markdown(f"<pre style='font-family: Pacifico, cursive; font-size:18px; white-space:pre-wrap;'>{message.content}</pre>",
         # unsafe_allow_html=True)
                         
-        #         elif isinstance(message, AIMessage):
-        #             with st.chat_message("assistant"):
-        #                 st.markdown(message.content)
-
-        #     # Chat input
-        #     user_input = st.chat_input("Type your message:", key="chat_input")
-
-        #     # if user submits an input
-        #     if user_input:
-        #         # add the input message on the screen and store into HumanMessage
-        #         with st.chat_message("user"):
-        #             st.markdown(f"```\n{user_input}\n```")
-                
-        #         st.session_state.messages.append(HumanMessage(content=user_input))
-
-        #         with st.chat_message("assistant"):
-        #             placeholder = st.empty()
-        #             reply = ""
-
-        #             # pass the session-specific chat history to the chat function
-        #             for chunk in chat(user_input, st.session_state.messages):
-        #                 reply += chunk
-        #                 placeholder.markdown(reply + "▌")
-        #             placeholder.markdown(reply)
-
-        #             # update the session state with the assistant's message
-        #             st.session_state.messages.append(AIMessage(content=reply))    
-        # else:
-        #     st.info("⚠️ Run a hypothesis test first to enable chat.")
+  
 
 
 # =========================================================================
