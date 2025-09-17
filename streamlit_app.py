@@ -229,10 +229,7 @@ with st.sidebar:
 
         #     # Display chat history
         #     for message in st.session_state.messages:
-        #         if isinstance(message, HumanMessage):
-        #             with st.chat_message("user"):
-        #                 st.markdown(f"<pre style='font-family: Pacifico, cursive; font-size:18px; white-space:pre-wrap;'>{message.content}</pre>",
-        # unsafe_allow_html=True)
+        
                         
   
 
