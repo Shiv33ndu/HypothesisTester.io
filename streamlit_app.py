@@ -216,13 +216,6 @@ with st.sidebar:
     # -------------------------
     # TAB 2: Chat (only after hypothesis ran)
     # -------------------------
-    with tab2:
-        # TODO: Remove the current code, and use older one from GitHub
-        # TODO: Add the tate_management for plot, not to rerun everytime the chat is being entered
-        pass
-        # if st.session_state.get("ran_hypothesis", False):
-        #     # Init chat history
-        #     if "messages" not in st.session_state:
        
         
 # =========================================================================
