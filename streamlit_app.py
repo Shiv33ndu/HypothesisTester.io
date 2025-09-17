@@ -223,12 +223,7 @@ with st.sidebar:
         # if st.session_state.get("ran_hypothesis", False):
         #     # Init chat history
         #     if "messages" not in st.session_state:
-        #         st.session_state.messages = []
-
-        #     st.subheader("💬 Chat with Hypothesis AI")
-
-        #     # Display chat history
-        #     for message in st.session_state.messages:
+       
         
                         
   
