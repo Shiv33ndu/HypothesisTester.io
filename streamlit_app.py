@@ -213,9 +213,7 @@ with st.sidebar:
                     else:
                         st.error("⚠️ Could not infer columns. Try putting the relevant columns into parenthesis(column_name).")
                         st.stop()
-    # -------------------------
-    # TAB 2: Chat (only after hypothesis ran)
-    # -------------------------
+
        
         
 # =========================================================================
