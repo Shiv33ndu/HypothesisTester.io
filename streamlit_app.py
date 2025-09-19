@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+from scipy import stats
 from rapidfuzz import fuzz
 import re
 from modules.agent_layer import handle
@@ -9,7 +10,7 @@ import plotly.graph_objects as go
 from scipy.stats import t, norm
 
 from modules.agent_layer import check_user_question
-from modules.agent_layer import chat, summarize
+from modules.agent_layer import summarize
 
 from langchain_core.messages import HumanMessage, AIMessage
 
@@ -73,146 +74,140 @@ def extract_from_parentheses(text):
 with st.sidebar:
     st.title("⚙️ Controls")
 
-    # Tabs inside sidebar
-    tab1, tab2 = st.tabs(["🛠 Hypothesis Setup", "💬 Chat"])
+    
+    uploaded_file = st.file_uploader("📂 Upload your dataset (CSV)", type=["csv"])
 
-    # -------------------------
-    # TAB 1: Setup & Run
-    # -------------------------
-    with tab1:
-        uploaded_file = st.file_uploader("📂 Upload your dataset (CSV)", type=["csv"])
+    if uploaded_file is None:
+        st.session_state.ran_hypothesis = False
 
-        if uploaded_file is None:
-            st.session_state.ran_hypothesis = False
+    if uploaded_file is not None:
+        st.session_state.df = pd.read_csv(uploaded_file)
+        st.write("📊 Preview:", st.session_state.df.head())
+        df = st.session_state.df
+        
+        # Separate column types
+        numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
+        categorical_cols = df.select_dtypes(exclude=["int64", "float64"]).columns.tolist()
 
-        if uploaded_file is not None:
-            st.session_state.df = pd.read_csv(uploaded_file)
-            st.write("📊 Preview:", st.session_state.df.head())
-            df = st.session_state.df
+        # User question
+        st.subheader("💬 Ask Your Question")
+        user_prompt = st.text_area(
+            "Enter your hypothesis in plain English,. Hint: using column names in parenthesis() will give better results",
+            placeholder="Is benefit score(benefits_score) negatively correlated with salary(salary_usd)?"
+            )
+        st.session_state.hypotheses_quest = user_prompt
+
+        # Run Hypothesis
+        if st.button("🔎 Run Hypothesis Test"):
+            if not user_prompt:
+                st.warning("Please enter a question before running!")
             
-            # Separate column types
-            numeric_cols = df.select_dtypes(include=["int64", "float64"]).columns.tolist()
-            categorical_cols = df.select_dtypes(exclude=["int64", "float64"]).columns.tolist()
-
-            # User question
-            st.subheader("💬 Ask Your Question")
-            user_prompt = st.text_area(
-                "Enter your hypothesis in plain English,. Hint: using column names in parenthesis() will give better results",
-                placeholder="Is benefit score(benefits_score) negatively correlated with salary(salary_usd)?"
-                )
-            st.session_state.hypotheses_quest = user_prompt
-
-            # Run Hypothesis
-            if st.button("🔎 Run Hypothesis Test"):
-                if not user_prompt:
-                    st.warning("Please enter a question before running!")
+            # New logic to handle user-enforced format
+            enclosed_cols = extract_from_parentheses(user_prompt)
+            
+            # Check if the user used the recommended parenthesis format
+            if enclosed_cols:
+                # User provided column names, let's validate them
+                matched_cols = [col for col in enclosed_cols if col in df.columns]
                 
-                # New logic to handle user-enforced format
-                enclosed_cols = extract_from_parentheses(user_prompt)
-                
-                # Check if the user used the recommended parenthesis format
-                if enclosed_cols:
-                    # User provided column names, let's validate them
-                    matched_cols = [col for col in enclosed_cols if col in df.columns]
+                # Check for typos
+                if len(matched_cols) != len(enclosed_cols):
+                    st.error("⚠️ Column name mismatch! One or more of the columns you entered do not exist in the dataset. Please check for typos and try again.")
+
+                    # 1. Identify the columns with typos
+                    typo_cols = [col for col in enclosed_cols if col not in df.columns]
                     
-                    # Check for typos
-                    if len(matched_cols) != len(enclosed_cols):
-                        st.error("⚠️ Column name mismatch! One or more of the columns you entered do not exist in the dataset. Please check for typos and try again.")
-
-                        # 1. Identify the columns with typos
-                        typo_cols = [col for col in enclosed_cols if col not in df.columns]
+                    # Generate the narrowed, fuzzy-matched hints
+                    fuzzy_matches = []
+                    for user_col in typo_cols:
+                        # Find the best fuzzy match for this specific column name
+                        best_match = None
+                        highest_ratio = 0
                         
-                        # Generate the narrowed, fuzzy-matched hints
-                        fuzzy_matches = []
-                        for user_col in typo_cols:
-                            # Find the best fuzzy match for this specific column name
-                            best_match = None
-                            highest_ratio = 0
-                            
-                            for df_col in df.columns:
-                                ratio = fuzz.ratio(user_col.lower(), df_col.lower())
-                                if ratio > highest_ratio:
-                                    highest_ratio = ratio
-                                    best_match = df_col
-                            
-                            # Add the best match if it's above a certain threshold (e.g., 70)
-                            if highest_ratio >= 70 and best_match not in fuzzy_matches:
-                                fuzzy_matches.append(f"{user_col} -> {best_match}")
+                        for df_col in df.columns:
+                            ratio = fuzz.ratio(user_col.lower(), df_col.lower())
+                            if ratio > highest_ratio:
+                                highest_ratio = ratio
+                                best_match = df_col
+                        
+                        # Add the best match if it's above a certain threshold (e.g., 70)
+                        if highest_ratio >= 70 and best_match not in fuzzy_matches:
+                            fuzzy_matches.append(f"{user_col} -> {best_match}")
 
-                        st.error(f"Wrong column name you entered : {typo_cols} ")
+                    st.error(f"Wrong column name you entered : {typo_cols} ")
 
-                        if fuzzy_matches:
-                            st.info(f"Did you mean: {', '.join(fuzzy_matches)} ?")
+                    if fuzzy_matches:
+                        st.info(f"Did you mean: {', '.join(fuzzy_matches)} ?")
 
-                        st.stop()
+                    st.stop()
+                
+                # If all columns match, proceed with the validated list
+                st.success(f"Columns found from your input : {matched_cols}")
+                info_placeholder = st.empty()
+                info_placeholder.info('🔍  Choosing the right test …')
+                
+                # moving forward to LLM layer to pass these values to work with and get the suggested test
+                check_question = check_user_question(user_prompt, df) 
+                
+                info_placeholder.empty()          # remove old banner
+
+                if check_question["decision"] == "descriptive":
+                    with info_placeholder.container():
+                        st.warning("⚠️  Not a hypothesis-testing question.")
+                        st.markdown(
+                            f"*Descriptive answer:*  \n"
+                            f"**{check_question['answer']}**"
+                        )
+                        with st.expander("Why no test was run"):
+                            st.write(check_question["reason"])
+                
+                else:
+                    data_context_json, response, test_results = handle(user_prompt, df, matched_cols)  
+                
+                    # setting a dummy result as of now to show on the plot space
+                    st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results, "data_context": data_context_json}
+                    st.session_state.ran_hypothesis = True
+
+            # Fallback to fuzzy search if no parentheses were used
+            else:
+                # extracting the column names using fuzzy search
+                matched_cols = [
+                    col for col in df.columns
+                    if fuzz.partial_ratio(col.lower(), user_prompt.lower()) >= 70
+                ]
+                if matched_cols:
+                    st.success(f"Inferred Columns : {matched_cols}")
                     
-                    # If all columns match, proceed with the validated list
-                    st.success(f"Columns found from your input : {matched_cols}")
                     info_placeholder = st.empty()
+
                     info_placeholder.info('🔍  Choosing the right test …')
-                    
-                    # moving forward to LLM layer to pass these values to work with and get the suggested test
+
+                    # passing the user prompt, and dataframe to LLM to identify correct Test for this 
                     check_question = check_user_question(user_prompt, df) 
-                    
+                
                     info_placeholder.empty()          # remove old banner
 
-                    if check_question["decision"] == "descriptive":
+                    if check_question.get("decision", "descriptive") == "descriptive":
                         with info_placeholder.container():
                             st.warning("⚠️  Not a hypothesis-testing question.")
                             st.markdown(
                                 f"*Descriptive answer:*  \n"
-                                f"**{check_question['answer']}**"
+                                f"**{check_question.get('answer', None)}**"
                             )
                             with st.expander("Why no test was run"):
-                                st.write(check_question["reason"])
-                    
+                                st.write(check_question("reason", None))
+
                     else:
                         data_context_json, response, test_results = handle(user_prompt, df, matched_cols)  
                     
                         # setting a dummy result as of now to show on the plot space
                         st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results, "data_context": data_context_json}
+                    
                         st.session_state.ran_hypothesis = True
 
-                # Fallback to fuzzy search if no parentheses were used
                 else:
-                    # extracting the column names using fuzzy search
-                    matched_cols = [
-                        col for col in df.columns
-                        if fuzz.partial_ratio(col.lower(), user_prompt.lower()) >= 70
-                    ]
-                    if matched_cols:
-                        st.success(f"Inferred Columns : {matched_cols}")
-                        
-                        info_placeholder = st.empty()
-
-                        info_placeholder.info('🔍  Choosing the right test …')
-
-                        # passing the user prompt, and dataframe to LLM to identify correct Test for this 
-                        check_question = check_user_question(user_prompt, df) 
-                    
-                        info_placeholder.empty()          # remove old banner
-
-                        if check_question.get("decision", "descriptive") == "descriptive":
-                            with info_placeholder.container():
-                                st.warning("⚠️  Not a hypothesis-testing question.")
-                                st.markdown(
-                                    f"*Descriptive answer:*  \n"
-                                    f"**{check_question.get('answer', None)}**"
-                                )
-                                with st.expander("Why no test was run"):
-                                    st.write(check_question("reason", None))
-
-                        else:
-                            data_context_json, response, test_results = handle(user_prompt, df, matched_cols)  
-                        
-                            # setting a dummy result as of now to show on the plot space
-                            st.session_state.results = {"cols": matched_cols, "prompt": user_prompt, 'response' : response, 'test_results' : test_results, "data_context": data_context_json}
-                        
-                            st.session_state.ran_hypothesis = True
-
-                    else:
-                        st.error("⚠️ Could not infer columns. Try putting the relevant columns into parenthesis(column_name).")
-                        st.stop()
+                    st.error("⚠️ Could not infer columns. Try putting the relevant columns into parenthesis(column_name).")
+                    st.stop()
 
        
         
@@ -242,7 +237,7 @@ def plot_ttest_significance(test_stat, p_value, df_val, tail_type, title, alpha=
     stat_line_color = "red" if is_significant else "green"
 
     # Define critical values and shade regions
-    if tail_type == "two-tailed":
+    if tail_type == "two-sided":
         crit_val_upper = t.ppf(1 - alpha/2, df_val)
         crit_val_lower = -crit_val_upper
         # Red rejection regions
@@ -251,7 +246,7 @@ def plot_ttest_significance(test_stat, p_value, df_val, tail_type, title, alpha=
         # Green "Fail to Reject" region
         fig.add_vrect(x0=crit_val_lower, x1=crit_val_upper, fillcolor="green", opacity=0.15, line_width=0, annotation_text="Fail to Reject Region", annotation_position="top")
 
-    elif tail_type == "left-tailed":
+    elif tail_type == "less":
         crit_val = t.ppf(alpha, df_val)
         fig.add_vrect(x0=-5, x1=crit_val, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region")
         fig.add_vrect(x0=crit_val, x1=5, fillcolor="green", opacity=0.15, line_width=0, annotation_text="Fail to Reject Region")
@@ -391,6 +386,154 @@ def plot_ordinal_vs_numeric_boxplot(df, numeric_var, ordinal_var, mapping, title
     )
     return fig
 
+def plot_ztest_significance(test_stat, p_value, tail_type, title, alpha=0.05):
+    """
+    Creates a visually appealing plot of the standard normal distribution,
+    highlighting the rejection (red) and acceptance (green) regions for a z-test.
+    """
+    x_values = np.linspace(-5, 5, 1000)
+    y_values = norm.pdf(x_values, 0, 1)  # standard normal N(0,1)
+    
+    fig = go.Figure()
+    
+    # Plot the normal distribution curve with fill
+    fig.add_trace(go.Scatter(
+        x=x_values, y=y_values, mode='lines',
+        fill='tozeroy', line_color='rgba(76, 114, 176, 1)', fillcolor='rgba(76, 114, 176, 0.2)',
+        name='Standard Normal'
+    ))
+    
+    # Determine significance and color for the test statistic line
+    is_significant = p_value <= alpha
+    stat_line_color = "red" if is_significant else "green"
+
+    # Define critical values and shade regions
+    if tail_type == "two-sided":
+        crit_val_upper = norm.ppf(1 - alpha/2)
+        crit_val_lower = -crit_val_upper
+        fig.add_vrect(x0=crit_val_upper, x1=5, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region", annotation_position="top left")
+        fig.add_vrect(x0=-5, x1=crit_val_lower, fillcolor="red", opacity=0.2, line_width=0)
+        fig.add_vrect(x0=crit_val_lower, x1=crit_val_upper, fillcolor="green", opacity=0.15, line_width=0, annotation_text="Fail to Reject", annotation_position="top")
+
+    elif tail_type == "less":
+        crit_val = norm.ppf(alpha)
+        fig.add_vrect(x0=-5, x1=crit_val, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region")
+        fig.add_vrect(x0=crit_val, x1=5, fillcolor="green", opacity=0.15, line_width=0, annotation_text="Fail to Reject Region")
+        
+    else:  # right-tailed
+        crit_val = norm.ppf(1 - alpha)
+        fig.add_vrect(x0=crit_val, x1=5, fillcolor="red", opacity=0.2, line_width=0, annotation_text="Rejection Region")
+        fig.add_vrect(x0=-5, x1=crit_val, fillcolor="green", opacity=0.15, line_width=0, annotation_text="Fail to Reject Region")
+
+    # Plot the test statistic line
+    fig.add_vline(
+        x=test_stat, line_dash="dash", line_color=stat_line_color, line_width=3,
+        annotation_text=f"Z: {test_stat:.3f}<br>p-value: {p_value:.4f}",
+        annotation_position="top right" if test_stat < 0 else "top left",
+        annotation_font_color=stat_line_color
+    )
+
+    significance_text = "Statistically Significant" if is_significant else "Not Statistically Significant"
+    fig.update_layout(
+        title=f"<b>{title}</b><br><sup>Result: {significance_text}</sup>",
+        xaxis_title="Z-Statistic",
+        yaxis_title="Probability Density",
+        showlegend=False,
+        template="plotly_white",
+        margin=dict(t=100)
+    )
+    return fig
+
+def plot_chi_square_gof(observed, expected, chi2_stat, p_value, title="Chi-Square Goodness-of-Fit"):
+    categories = [f"Cat {i+1}" for i in range(len(observed))]
+
+    fig = go.Figure()
+    fig.add_trace(go.Bar(
+        x=categories, y=observed, name="Observed",
+        marker=dict(color="steelblue")
+    ))
+    fig.add_trace(go.Bar(
+        x=categories, y=expected, name="Expected",
+        marker=dict(color="orange")
+    ))
+
+    fig.update_layout(
+        title=title,
+        barmode="group",
+        xaxis_title="Categories",
+        yaxis_title="Counts",
+        legend=dict(title="Legend"),
+        template="plotly_white",
+        annotations=[
+            dict(
+                x=0.5, y=max(max(observed), max(expected)) * 1.1,
+                text=f"Chi2 = {chi2_stat:.3f}, p = {p_value:.4f}",
+                showarrow=False, font=dict(size=12)
+            )
+        ]
+    )
+    return fig
+
+def plot_wilcoxon_significance(test_stat, p_value, tail_type, title, alpha=0.05):
+    """
+    Creates a plot for Wilcoxon Signed-Rank Test significance using a normal approximation.
+    Highlights the rejection and fail-to-reject regions.
+    """
+    # Approximate using standard normal for visualization
+    x_values = np.linspace(-5, 5, 1000)
+    y_values = stats.norm.pdf(x_values)
+
+    fig = go.Figure()
+
+    # Main normal curve
+    fig.add_trace(go.Scatter(
+        x=x_values, y=y_values, mode='lines',
+        fill='tozeroy', line_color='rgba(76, 114, 176, 1)', fillcolor='rgba(76, 114, 176, 0.2)',
+        name='Normal Approximation'
+    ))
+
+    # Determine significance and line color
+    is_significant = p_value <= alpha
+    stat_line_color = "red" if is_significant else "green"
+
+    # Plot rejection regions based on tail
+    if tail_type == "two-sided":
+        crit_val_upper = stats.norm.ppf(1 - alpha/2)
+        crit_val_lower = -crit_val_upper
+        fig.add_vrect(x0=crit_val_upper, x1=5, fillcolor="red", opacity=0.2, line_width=0)
+        fig.add_vrect(x0=-5, x1=crit_val_lower, fillcolor="red", opacity=0.2, line_width=0)
+        fig.add_vrect(x0=crit_val_lower, x1=crit_val_upper, fillcolor="green", opacity=0.15, line_width=0)
+    elif tail_type == "less":
+        crit_val = stats.norm.ppf(alpha)
+        fig.add_vrect(x0=-5, x1=crit_val, fillcolor="red", opacity=0.2, line_width=0)
+        fig.add_vrect(x0=crit_val, x1=5, fillcolor="green", opacity=0.15, line_width=0)
+    else:  # greater
+        crit_val = stats.norm.ppf(1 - alpha)
+        fig.add_vrect(x0=crit_val, x1=5, fillcolor="red", opacity=0.2, line_width=0)
+        fig.add_vrect(x0=-5, x1=crit_val, fillcolor="green", opacity=0.15, line_width=0)
+
+    # Test statistic line
+    fig.add_vline(
+        x=test_stat, line_dash="dash", line_color=stat_line_color, line_width=3,
+        annotation_text=f"Test Statistic: {test_stat:.3f}<br>p-value: {p_value:.4f}",
+        annotation_position="top right" if test_stat < 0 else "top left",
+        annotation_font_color=stat_line_color
+    )
+
+    significance_text = "Statistically Significant" if is_significant else "Not Statistically Significant"
+    fig.update_layout(
+        title=f"<b>{title}</b><br><sup>Result: {significance_text}</sup>",
+        xaxis_title="Wilcoxon Test Statistic (Normal Approximation)",
+        yaxis_title="Probability Density",
+        showlegend=False,
+        template="plotly_white",
+        margin=dict(t=100)
+    )
+
+    return fig
+
+
+
 # --------------------------------------------------------------------------------------------------------------
 # Main content area
 # --------------------------------------------------------------------------------------------------------------
@@ -421,113 +564,6 @@ else:
     test_name = results_response.get('test_name')
     params = results_response.get('test_parameters', {})
     test_results = st.session_state.results['test_results']
-
-    # st.write("#### Data Visualization")
-    
-    # # Plotting logic based on test type
-    # if test_name in ["Two-Sample Independent t-test", "One-Sample t-test", "Paired Sample t-test"]:
-    #     t_statistic = test_results.get('t_statistic')
-    #     p_value = test_results.get('p_value')
-    #     tail = ''
-    #     if params["tail"] == 'two-tailed':
-    #         tail = 'two-sided'
-    #     elif params["tail"] == 'left-tailed':
-    #         tail = 'less'
-    #     elif params["tail"] == 'right-tailed':
-    #         tail = 'greater'
-
-    #     df_val = test_results.get('degrees_of_freedom')
-        
-    #     if all([t_statistic is not None, p_value is not None, tail, df_val is not None]):
-    #         fig = plot_ttest_significance(
-    #             test_stat=t_statistic, 
-    #             p_value=p_value, 
-    #             df_val=df_val,
-    #             tail_type=tail, 
-    #             title=f'Significance of {test_name}'
-    #         )
-    #         st.plotly_chart(fig, use_container_width=True)
-    #     else:
-    #         st.warning("Could not generate t-test significance plot due to missing parameters (t-statistic, p-value, tail, or degrees of freedom).")
-    
-    # elif test_name in ["ANOVA", "Kruskal-Wallis H Test", "Mann-Whitney U Test"]:
-    #     dependent_var = params.get('dependent_variable')
-    #     independent_var = params.get('independent_variables', [None])[0]
-    #     if dependent_var and independent_var:
-    #         fig = plot_group_comparison_violin(
-    #             df, dependent_var, independent_var, 
-    #             f"Distribution of {dependent_var} by {independent_var}"
-    #         )
-    #         st.plotly_chart(fig, use_container_width=True)
-    #     else:
-    #         st.warning("Could not generate plot due to missing parameters.")
-    
-  
-
-    # elif test_name in ["Correlation Test (Pearson/Spearman)", "Linear Regression Analysis"]:
-    #         params = results_response.get('test_parameters', {})
-    #         # Check if an ordinal mapping was used in the test
-    #         ordinal_mapping = params.get("ordinal_mapping")
-    #         cols = results_response.get('columns', [])
-
-    #         if not cols or len(cols) < 2:
-    #             st.warning("Could not generate plot due to missing column parameters.")
-            
-    #         # --- NEW DECISION LOGIC ---
-    #         elif ordinal_mapping:
-    #             # This was an Ordinal vs. Numeric Spearman correlation. Use a box plot.
-    #             st.write("#### Ordinal vs. Numeric Relationship")
-                
-    #             # Identify which column is ordinal and which is numeric
-    #             ordinal_var = list(ordinal_mapping.keys())[0]
-    #             numeric_var = [col for col in cols if col != ordinal_var][0]
-    #             mapping_dict = ordinal_mapping[ordinal_var]
-
-    #             # Call the new box plot function
-    #             fig = plot_ordinal_vs_numeric_boxplot(
-    #                 df,
-    #                 numeric_var=numeric_var,
-    #                 ordinal_var=ordinal_var,
-    #                 mapping=mapping_dict,
-    #                 title=f"Distribution of {numeric_var} across {ordinal_var} Levels"
-    #             )
-    #             st.plotly_chart(fig, use_container_width=True)
-
-    #         else:
-    #             # This is a standard Numeric vs. Numeric correlation. Use a scatter plot.
-    #             st.write("#### Numeric vs. Numeric Relationship")
-    #             x_var, y_var = cols[0], cols[1]
-                
-    #             # Check if columns are numeric before plotting
-    #             if pd.api.types.is_numeric_dtype(df[x_var]) and pd.api.types.is_numeric_dtype(df[y_var]):
-    #                 fig = plot_correlation_scatter(
-    #                     df, x_var, y_var,
-    #                     f"Relationship between {x_var} and {y_var}"
-    #                 )
-    #                 st.plotly_chart(fig, use_container_width=True)
-    #             else:
-    #                 st.warning(f"Could not generate scatter plot. Both '{x_var}' and '{y_var}' must be numeric.")
-
-    # elif test_name in ["Chi-Square Test of Independence", "Fisher's Exact Test"]:
-    #     # Chi-square usually involves two categorical variables
-    #     vars_to_plot = params.get('independent_variables', [])
-    #     if len(vars_to_plot) >= 2:
-    #         col1, col2 = vars_to_plot[0], vars_to_plot[1]
-    #         fig = plot_contingency_heatmap(
-    #             df, col1, col2,
-    #             f"Contingency Heatmap of {col1} and {col2}"
-    #         )
-    #         st.plotly_chart(fig, use_container_width=True)
-    #     else:
-    #         st.warning("Could not generate plot. Chi-Square test requires at least two categorical variables.")
-    
-    # else: # Default plot for single-variable tests like Shapiro-Wilk
-    #     dependent_var = params.get('dependent_variable')
-    #     if dependent_var:
-    #         fig = plot_distribution_histogram(df, dependent_var, f"Distribution of {dependent_var}")
-    #         st.plotly_chart(fig, use_container_width=True)
-    #     else:
-    #         st.warning("Could not generate a suitable plot for this test.")
 
     plot_context = {}
     
@@ -673,9 +709,122 @@ else:
         else:
             st.warning("Could not generate plot. Chi-Square test requires at least two categorical variables.")
     
+    elif test_name in ["One-Sample Z-test"]:
+        z_statistic = test_results.get('z_statistic')
+        p_value = test_results.get('p_value')
+        
+        tail = ''
+        if params.get('tail', 'not applicable') == 'two-tailed':
+            tail = 'two-sided'
+        elif params.get('tail', 'not applicable') == 'left-tailed':
+            tail = 'less'
+        elif params.get('tail', 'not applicable') == 'right-tailed':
+            tail = 'greater'
+
+        if all([z_statistic is not None, p_value is not None, tail]):
+            fig = plot_ztest_significance(
+                test_stat=z_statistic, p_value=p_value, tail_type=tail,
+                title=f'Significance of {test_name}'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # CAPTURE PLOT CONTEXT for z-test
+            is_significant = p_value <= 0.05
+            plot_context = {
+                "plot_type": "Z-distribution Significance Plot",
+                "description": "This plot shows the probability density of the standard normal distribution for this test. It visualizes whether the result is statistically significant.",
+                "variables": {"x_axis": "Z-Statistic Value", "y_axis": "Probability Density"},
+                "key_observations": {
+                    "test_statistic_value": round(z_statistic, 3),
+                    "p_value": round(p_value, 4),
+                    "conclusion": "The test statistic falls into the '{}' region.".format("rejection (red)" if is_significant else "fail-to-reject (green)"),
+                    "is_significant": is_significant
+                }
+            }
+        else:
+            st.warning("Could not generate z-test significance plot due to missing parameters.")
+
+    elif test_name in ["Chi-Square Goodness-of-Fit Test"]:
+        chi2_stat = test_results.get('chi2_statistic')
+        p_value = test_results.get('p_value')
+        expected_values = params.get('expected_values', [])
+        columns = results_response.get('columns', [])
+        
+        # we assume observed values come from df counts on categorical col
+        if columns and expected_values:
+            col_name = columns[0]
+            observed_counts = df[col_name].value_counts().sort_index().tolist()
+
+            if all([chi2_stat is not None, p_value is not None, observed_counts, expected_values]):
+                fig = plot_chi_square_gof(
+                    observed=observed_counts,
+                    expected=expected_values,
+                    chi2_stat=chi2_stat,
+                    p_value=p_value,
+                    title=f"{test_name}: Observed vs Expected"
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                # CAPTURE PLOT CONTEXT
+                is_significant = p_value <= 0.05
+                plot_context = {
+                    "plot_type": "Chi-Square Goodness-of-Fit Plot",
+                    "description": "This plot compares observed and expected category frequencies to evaluate how well the data fits the expected distribution.",
+                    "variables": {"x_axis": "Categories", "y_axis": "Counts"},
+                    "key_observations": {
+                        "chi2_statistic_value": round(chi2_stat, 3),
+                        "p_value": round(p_value, 4),
+                        "conclusion": "The distribution {} the expected one.".format(
+                            "differs significantly from" if is_significant else "does not differ significantly from"
+                        ),
+                        "is_significant": is_significant
+                    }
+                }
+            else:
+                st.warning("Could not generate Chi-Square GOF plot due to missing parameters.")
+
+    elif test_name in ["Wilcoxon Signed-Rank Test"]:
+        w_statistic = test_results.get('t_statistic')
+        p_value = test_results.get('p_value')
+        
+        tail = ''
+        if params.get('tail', 'not applicable') == 'two-tailed':
+            tail = 'two-sided'
+        elif params.get('tail', 'not applicable') == 'left-tailed':
+            tail = 'less'
+        elif params.get('tail', 'not applicable') == 'right-tailed':
+            tail = 'greater'
+
+        if all([w_statistic is not None, p_value is not None]):
+            fig = plot_wilcoxon_significance(
+                test_stat=w_statistic,
+                p_value=p_value,
+                tail_type=tail,
+                title=f'Significance of {test_name}'
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # CAPTURE PLOT CONTEXT for Wilcoxon Signed-Rank Test
+            is_significant = p_value <= 0.05
+            plot_context = {
+                "plot_type": "Wilcoxon Signed-Rank Test Plot",
+                "description": "This plot shows the distribution of paired differences and highlights the Wilcoxon test statistic to indicate significance.",
+                "variables": {"x_axis": "Difference Values", "y_axis": "Frequency"},
+                "key_observations": {
+                    "test_statistic_value": round(w_statistic, 3),
+                    "p_value": round(p_value, 4),
+                    "conclusion": "The test statistic falls into the '{}' region.".format(
+                        "rejection (red)" if is_significant else "fail-to-reject (green)"
+                    ),
+                    "is_significant": is_significant
+                }
+            }
+        else:
+            st.warning("Could not generate Wilcoxon Signed-Rank significance plot due to missing parameters.")
+
+
 
     # LLM Summary once the graph is plotted 
-    
     st.write("#### Summary:")
     
     user_hypothesis_question = st.session_state.hypotheses_quest
@@ -690,7 +839,5 @@ else:
         res += chunks
         summ_placeholder.markdown(res + "▌")
     summ_placeholder.markdown(res)    
-
-    st.write("If you want to dive deep into this test summary, head to chat tab in Sidebar to chat with the Hypotheses AI")
 
     st.session_state.plotContext = plot_context
