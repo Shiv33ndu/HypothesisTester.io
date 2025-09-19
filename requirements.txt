@@ -18,3 +18,7 @@ ollama>=0.5      # if you have installed ollama locally then use this
 # if using gemini api
 google-genai
 langchain-google-genai
+
+
+# if using HugginFace Inference APIs
+langchain-huggingface
