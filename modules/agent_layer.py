@@ -5,18 +5,22 @@ import os
 import pandas as pd
 from dotenv import load_dotenv
 from langchain_core.prompts import ChatPromptTemplate
+
+# If using gemini API
 from langchain_google_genai import ChatGoogleGenerativeAI
+
 from langchain_core.exceptions import LangChainException
 from google.api_core.exceptions import ResourceExhausted
 
-from modules.agent_instruct import classify_and_structure, guard_prompt, summary, chat
+# If using HuggingFace Inference
+# from langchain_huggingface import HuggingFaceEndpoint
+
+from modules.agent_instruct import classify_and_structure, guard_prompt, summary
 from utils.data_reader import prepare_data_context
 from utils.jsonfy import give_json
 from modules.hypothesis_test import dispatch_test
 
 from typing import Dict, Any
-
-from utils.render_chat_history import render_chat
 
 
 load_dotenv()
@@ -39,6 +43,18 @@ gemini_llm = ChatGoogleGenerativeAI(model = "gemini-1.5-flash",
 
 # ============================================================
 
+# ================== HuggingFace Endpoint =====================
+
+# gemini_llm = HuggingFaceEndpoint(
+#     repo_id="openai/gpt-oss-120b",        # <--- exact 120 B model
+#     task="conversational",
+#     huggingfacehub_api_token=os.getenv("HF_TOKEN"),
+#     temperature=0.1,
+#     max_new_tokens=2048,
+# )
+
+# =============================================================
+
 # ========================= Chain & Prompts ==================
 
 # gatekeep and check the user question model
@@ -54,10 +70,6 @@ reading_chain = reading_prompt | gemini_llm
 summary_prompt = ChatPromptTemplate.from_template(summary())
 summary_chain = summary_prompt | gemini_llm
 
-
-# chat with the user about the test
-chat_prompt = ChatPromptTemplate.from_template(chat())
-chat_chain = chat_prompt | gemini_llm
 
 # ============================================================
 
@@ -123,12 +135,12 @@ def handle(user_prompt : str, df : pd.DataFrame, columns : list[str]):
 # checks if the user's question is inferential or descriptive(we wont need hypothesis for that)
 def check_user_question(user_prompt: str, df: pd.DataFrame):
     res = ''
-
+    
     
     try:
         for chunks in check_chain.stream({'user_prompt' : user_prompt, 'data_context': df.head().to_string()}):
             res += chunks.content
-
+    
     except ResourceExhausted:
         return None, {'Error:': f"You have exhausted the free Token. Please try again later!"}, None
     
@@ -138,9 +150,9 @@ def check_user_question(user_prompt: str, df: pd.DataFrame):
             return None, {"Error": "You have exceeded your quota. Please check your subscription and billing details."}, None
         return None, {"Error": "An unexpected error occurred. Please try again later."}, None
 
-
+    print(res)
     checked_question_json = give_json(res)
-
+    print(f"\n\n{checked_question_json}")
     return checked_question_json  
 
 
@@ -175,29 +187,29 @@ def summarize(user_prompt: str, llm_response: Dict[str, Any], test_results: Dict
 
 
 # Final layer to let user talk about the test and query his doubts
-def chat(user_prompt: str, data_context_json: Dict[str, Any], llm_response: Dict[str, Any], test_results: Dict[str, Any], plot_context: Dict[str, Any], user_chat: str, chat_context: list):
+# def chat(user_prompt: str, data_context_json: Dict[str, Any], llm_response: Dict[str, Any], test_results: Dict[str, Any], plot_context: Dict[str, Any], user_chat: str, chat_context: list):
     
-    chat_history = render_chat(chat_context)
+#     chat_history = render_chat(chat_context)
 
-    try:
-        for chunks in chat_chain.stream({
-        'user_prompt': user_prompt,
-        'data_context': data_context_json,
-        'llm_response': llm_response,
-        'test_results': test_results,
-        'plot_context': plot_context,
-        'user_chat': user_chat,
-        'chat_history': chat_history
+#     try:
+#         for chunks in chat_chain.stream({
+#         'user_prompt': user_prompt,
+#         'data_context': data_context_json,
+#         'llm_response': llm_response,
+#         'test_results': test_results,
+#         'plot_context': plot_context,
+#         'user_chat': user_chat,
+#         'chat_history': chat_history
 
-    }):
-            print(chunks.content, end='', flush=True)
-            yield chunks.content
+#     }):
+#             print(chunks.content, end='', flush=True)
+#             yield chunks.content
 
-    except ResourceExhausted:
-        return None, {'Error:': f"You have exhausted the free Token. Please try again later!"}, None
+#     except ResourceExhausted:
+#         return None, {'Error:': f"You have exhausted the free Token. Please try again later!"}, None
     
-    except Exception as e:
-        # Fallback in case you can't catch ResourceExhausted explicitly
-        if "ResourceExhausted" in str(e) or "quota" in str(e).lower():
-            return None, {"Error": "You have exceeded your quota. Please check your subscription and billing details."}, None
-        return None, {"Error": "An unexpected error occurred. Please try again later."}, None
+#     except Exception as e:
+#         # Fallback in case you can't catch ResourceExhausted explicitly
+#         if "ResourceExhausted" in str(e) or "quota" in str(e).lower():
+#             return None, {"Error": "You have exceeded your quota. Please check your subscription and billing details."}, None
+#         return None, {"Error": "An unexpected error occurred. Please try again later."}, None
