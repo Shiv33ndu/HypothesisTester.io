@@ -20,6 +20,7 @@ Upload your data, ask questions in **natural language**, and get **statistical t
   - Fisher's Exact Test
   - Linear Regression Analysis
   - Mann-Whitney U Test
+  - Wilcoxon Signed-Rank Test
 - 📊 **Visual Cues** – auto-generated plots with rejection regions and significance highlights.  
 - 🧠 **LLM-Powered Explanation** *(future)* – ask the AI to explain test results in plain English.  
 - 🌐 **Domain-Agnostic** – works across finance, healthcare, marketing, education, and more.
