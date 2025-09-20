@@ -13,6 +13,7 @@ Upload your data, ask questions in **natural language**, and get **statistical t
   - ANOVA
   - One-Sample Z-test
   - Chi-Square
+  - Chi-Square Test of Independence
   - Correlation tests (Pearson, Spearman)
   - Proportions Z-test
   - Kruskal-Wallis H Test
