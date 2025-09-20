@@ -11,6 +11,7 @@ Upload your data, ask questions in **natural language**, and get **statistical t
 - 🧪 **Hypothesis Testing** – run common statistical tests such as:
   - t-test (one-sample, two-sample, paired)
   - ANOVA
+  - One-Sample Z-test
   - Chi-Square
   - Correlation tests (Pearson, Spearman)
   - Proportions Z-test
