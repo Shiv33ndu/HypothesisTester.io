@@ -37,7 +37,7 @@ load_dotenv()
 
 # ==================== API Called LLMs =======================
 
-gemini_llm = ChatGoogleGenerativeAI(model = "gemini-1.5-flash", 
+gemini_llm = ChatGoogleGenerativeAI(model = "gemini-2.5-flash", 
                                     google_api_key=os.getenv('GEMINI_API_KEY'),
                                     )
 
