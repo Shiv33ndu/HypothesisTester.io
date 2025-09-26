@@ -1,98 +1,127 @@
-# 📊 Hypothesis Tester AI
+<!-- ============================================= -->
+<!--            HypothesisTester.io README          -->
+<!-- ============================================= -->
 
-An **interactive AI-powered data analysis tool** built with **Streamlit** that helps users perform **hypothesis testing** on their datasets.  
-Upload your data, ask questions in **natural language**, and get **statistical test results with visualizations** — all in one place.
+# 🧪 HypothesisTester.io  
 
----
+[![Python](https://img.shields.io/badge/python-3.10+-blue.svg?logo=python)](https://www.python.org/)  
+[![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)  
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)  
+[![Contributions](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg?logo=github)](CONTRIBUTING.md)  
+[![Open Source](https://img.shields.io/badge/Open%20Source-%E2%9D%A4-red.svg)]()  
 
-## 🚀 Features
-- 💬 **Chat-like Interface** – interact with your dataset using natural language.  
-- 📂 **Upload Your Dataset** – CSV/XLSX support.  
-- 🧪 **Hypothesis Testing** – run common statistical tests such as:
-  - t-test (one-sample, two-sample, paired)
-  - ANOVA
-  - One-Sample Z-test
-  - Chi-Square
-  - Chi-Square Test of Independence
-  - Correlation tests (Pearson, Spearman)
-  - Proportions Z-test
-  - Kruskal-Wallis H Test
-  - Fisher's Exact Test
-  - Linear Regression Analysis
-  - Mann-Whitney U Test
-  - Wilcoxon Signed-Rank Test
-- 📊 **Visual Cues** – auto-generated plots with rejection regions and significance highlights.  
-- 🧠 **LLM-Powered Explanation** *(future)* – ask the AI to explain test results in plain English.  
-- 🌐 **Domain-Agnostic** – works across finance, healthcare, marketing, education, and more.
+**HypothesisTester.io** is an interactive, AI-assisted tool built with **Streamlit** that enables data scientists, analysts, and students to perform hypothesis testing seamlessly. It combines statistical rigor with intuitive UI and visual explanations.
 
 ---
 
-## 🗂️ Project Structure
+## 🚀 Why This Project?
 
-
+- 🧠 **No-code testing** → Upload data & test hypotheses without writing boilerplate code.  
+- 👨🏻‍🦱 **User Friendly** → You don't need extensive statistical knowledge to perform various Hypothesis Tests now.
+- 📊 **Wide test coverage** → From t-tests to chi-square and ANOVA.  
+- ✍️ **Human-readable insights** → Planned integration with LLMs for natural language explanations.  
+- 🎯 **Cross-domain utility** → Finance, healthcare, education, marketing, psychology, and more.  
 
 ---
 
-## ⚙️ Installation
-Clone the repository:
+## 📂 Project Structure
+
+.
+├── components/ # Streamlit UI widgets & reusable blocks
+├── modules/ # Statistical test implementations
+├── utils/ # Helper utilities (data loading, plotting, etc.)
+├── streamlit_app.py # Main app entry
+├── requirements.txt # Project dependencies
+└── README.md # You’re reading this 🙂
+
+---
+
+## 🔧 Installation & Setup
+
+> Works with **Python 3.10+**
+
 ```bash
-git clone https://github.com/your-username/hypothesis-tester-ai.git
-cd hypothesis-tester-ai
-```
+# 1. Clone repo
+git clone https://github.com/Shiv33ndu/HypothesisTester.io.git
+cd HypothesisTester.io
 
----
+# 2. Create virtual environment
+python3 -m venv .venv
+source .venv/bin/activate    # Linux/Mac
+.venv\Scripts\activate       # Windows
 
-## Create a virtual environment and install dependencies:
-```bash 
-python -m venv .venv
-source .venv/bin/activate   # On Linux/Mac
-.venv\Scripts\activate      # On Windows
-
+# 3. Install requirements
 pip install -r requirements.txt
+
+# 4. Run app
+streamlit run streamlit_app.py
+
 ```
 
----
-
-## ▶️ Usage
-Run the Steamlit app:
-```bash
-streamlit run app.py
-```
-Open your browser at http://localhost:8501
-
----
-
-## 📊 Example Workflow
-
-1. Upload your dataset (.csv or .xlsx).
-2. Choose columns and select a hypothesis test.
-3. View p-values, rejection decisions, and interactive plots.
-4. (Future) Ask the AI to explain results or suggest additional tests.
+👉 App will be available at: http://localhost:8501
 
 
 ---
 
-## 🔮 Roadmap
+## 🧩 Usage Workflow
 
-- Add Bayesian hypothesis testing
-- Add effect size and power analysis
-- Enhance LLM integration for natural language queries
-- Improve UX with collapsible analysis panel
+1. Upload your dataset (.csv / .xlsx).
+2. Pick variables & choose a hypothesis test.
+3. Get results → test statistics, p-values, confidence intervals.
+4. Visualize rejection regions & distributions.
+5. (Planned) Ask AI for plain-English interpretations & recommendations.
+
+---
+
+## 🔍 Supported Tests
+
+### ✅ Parametric
+
+- One / Two-sample t-test
+- Paired t-test
+- ANOVA
+- One-sample Z-test
+- Proportion Z-test
+- Linear Regression
+
+### ✅ Nonparametric & Categorical
+
+- Mann-Whitney U
+- Wilcoxon signed-rank
+- Kruskal–Wallis H
+- Chi-square (goodness of fit, independence)
+- Fisher’s exact
+
+
+### ✅ Correlation
+
+- Pearson
+- Spearman
 
 ---
 
 ## 🤝 Contributing
-Contributions are welcome! Please fork the repo and submit a pull request.
+
+Contributions are welcome!
+
+- Fork repo
+- Create feature branch
+- Commit changes with clear messages
+- Submit PR 🚀
+- Bug reports, feature requests, or suggestions → open an Issue.
 
 ---
 
-## 📜 License
+## 📝 License
+
+This project is licensed under the MIT License.
 
 ---
 
+## 👤 Author
 
-## 👤Author
+**Shivendu Kumar**
 
-Shivendu Kumar
+💼 Data Scientist & ML Engineer | MLOps Enthusiast
 
-📌 DS & ML | MLOps Engineer |
+---
