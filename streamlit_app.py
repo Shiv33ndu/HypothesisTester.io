@@ -552,7 +552,6 @@ if not st.session_state.ran_hypothesis:
         **Example:** *Is the average salary (salary_usd) different for remote employees (remote_ratio)?*
     - 🚀 Click **Run Hypothesis Test**.
     - 📊 Results and plots will appear here.
-    - 💬 After the results, you can chat with the AI about your data.
     """
     )
 
