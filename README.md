@@ -24,6 +24,56 @@
 
 ---
 
+## 🏆 Why It Stands Out
+
+Unlike static hypothesis test calculators, **HypothesisTester.io** leverages **prompt chaining + statistical computation**, making it both **AI-powered** and **statistics-grounded**. Perfect for students, data scientists, and researchers who want both automation and interpretability.
+
+---
+
+## ✨ Features
+
+- 📊 **Statistical Tests Made Easy**: Supports t-tests, z-tests, chi-square tests, ANOVA, and more.
+
+- 🤖**AI-Powered Prompt Chaining**: The app uses prompt chaining to interpret user queries in plain English and automatically map them to the correct hypothesis test. Example:
+    
+    - Input: *“Check if the average salary of men and women is significantly different.”*
+    - Model Response: Chooses **two-sample t-test** and executes it.
+
+- 🎯 Smart Test Selection: No need to remember test names — just ask your question, and the model decides the right test for you.
+
+- 🌐 Clean & Interactive UI: Built for ease of use, with clear results and visual feedback.
+
+---
+
+## 🚀 Tech Stack
+
+Frontend: Streamlit
+
+Backend: Python (statsmodels, scipy)
+
+AI Layer: OpenAI-powered prompt chaining for intelligent query-to-test mapping
+
+Visualization: Matplotlib / Seaborn
+
+---
+
+📸 Preview
+
+---
+
+## 🏗️ How It Works
+
+1. User enters a plain English query *(e.g., “Is there a relationship between study time and exam scores?”)*.
+
+2. The model processes the query through **prompt chaining** → identifies dependent/independent variables → selects correct hypothesis test.
+
+3. App runs test and displays:
+    - Null & alternative hypothesis
+    - Test statistic & p-value
+    - Clear conclusion
+
+---
+
 ## 📂 Project Structure
 
 .
