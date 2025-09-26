@@ -5,6 +5,9 @@
 # 🧪 HypothesisTester.io  
 
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg?logo=python)](https://www.python.org/)  
+[![LangChain](https://img.shields.io/badge/Powered%20by-LangChain-1C3C3C.svg?logo=chainlink&logoColor=white)](https://www.langchain.com/)  
+[![Gemini](https://img.shields.io/badge/AI-Gemini-4285F4.svg?logo=google&logoColor=white)](https://deepmind.google/technologies/gemini/)
+[![Plotly](https://img.shields.io/badge/Visualization-Plotly-3F4F75.svg?logo=plotly&logoColor=white)](https://plotly.com/)  
 [![Streamlit](https://img.shields.io/badge/Built%20with-Streamlit-FF4B4B.svg?logo=streamlit&logoColor=white)](https://streamlit.io/)  
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)  
 [![Contributions](https://img.shields.io/badge/Contributions-Welcome-brightgreen.svg?logo=github)](CONTRIBUTING.md)  
@@ -47,13 +50,10 @@ Unlike static hypothesis test calculators, **HypothesisTester.io** leverages **p
 
 ## 🚀 Tech Stack
 
-Frontend: Streamlit
-
-Backend: Python (statsmodels, scipy)
-
-AI Layer: OpenAI-powered prompt chaining for intelligent query-to-test mapping
-
-Visualization: Matplotlib / Seaborn
+- **Frontend**: Streamlit
+- **Backend**: Python (statsmodels, scipy)
+- **AI Layer**: AI-powered prompt chaining for intelligent query-to-test mapping
+- **Visualization**: Plotly
 
 ---
 
@@ -76,14 +76,22 @@ Visualization: Matplotlib / Seaborn
 
 ## 📂 Project Structure
 
-.
-├── components/ # Streamlit UI widgets & reusable blocks
-├── modules/ # Statistical test implementations
-├── utils/ # Helper utilities (data loading, plotting, etc.)
-├── streamlit_app.py # Main app entry
-├── requirements.txt # Project dependencies
-└── README.md # You’re reading this 🙂
-
+```mermaid
+flowchart TD
+    A[HypothesisTester.io] --> B[components/]
+    A --> C[modules/]
+    A --> D[utils/]
+    A --> E[streamlit_app.py]
+    A --> F[requirements.txt]
+    A --> G[README.md]
+    B --> B1[UI Widgets]
+    B --> B2[Reusable Blocks]
+    C --> C1[Hypothesis Tests]
+    C --> C2[Statistical Functions]
+    D --> D1[Data Loading]
+    D --> D2[Validation]
+    D --> D3[Plotting & Visualization]
+```
 ---
 
 ## 🔧 Installation & Setup
